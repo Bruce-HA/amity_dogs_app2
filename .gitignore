@@ -1,0 +1,24 @@
+# Flutter
+build/
+.dart_tool/
+.packages
+.pub-cache/
+pubspec.lock
+
+# iOS
+ios/Pods/
+ios/Runner.xcworkspace
+
+# Android
+android/.gradle/
+android/app/build/
+
+# MacOS
+macos/Pods/
+
+# IDE
+.idea/
+.vscode/
+
+# System
+.DS_Store
