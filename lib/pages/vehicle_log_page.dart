@@ -156,7 +156,11 @@ class _VehicleLogPageState extends State<VehicleLogPage> {
                 );
               },
               icon: const Icon(Icons.picture_as_pdf),
-              label: const Text("Report"),
+              label: const Text(
+                "Report",
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
             ),
           ],
         ),
@@ -165,88 +169,116 @@ class _VehicleLogPageState extends State<VehicleLogPage> {
   }
 
   @override
-  Widget build(BuildContext context) {
-    if (loading) {
-      return const Scaffold(
-          body: Center(child: CircularProgressIndicator()));
-    }
+    Widget build(BuildContext context) {
+      if (loading) {
+        return const Scaffold(
+          body: Center(child: CircularProgressIndicator()),
+        );
+      }
 
-    return Scaffold(
-      appBar: AppBar(title: const Text('Vehicle Log')),
-      body: SafeArea(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.all(16),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                children: vehicles.map((v) => Expanded(child: vehicleTile(v))).toList(),
-              ),
-
-              const SizedBox(height: 20),
-
-              Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  const Text('Private'),
-                  Switch(
-                    value: isBusiness,
-                    onChanged: (value) {
-                      setState(() {
-                        isBusiness = value;
-                      });
-                    },
-                  ),
-                  const Text('Business'),
-                ],
-              ),
-
-              const SizedBox(height: 20),
-
-              Text(
-                'Driver\n$driverName',
-                style:
-                    const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
-              ),
-
-              const SizedBox(height: 20),
-
-              TextField(
-                controller: startKmController,
-                keyboardType: TextInputType.number,
-                decoration: const InputDecoration(labelText: 'Start KM'),
-              ),
-
-              const SizedBox(height: 20),
-
-              TextField(
-                controller: endKmController,
-                keyboardType: TextInputType.number,
-                decoration: const InputDecoration(labelText: 'End KM'),
-              ),
-
-              const SizedBox(height: 20),
-
-              TextField(
-                controller: notesController,
-                decoration: const InputDecoration(labelText: 'Notes'),
-              ),
-
-              const SizedBox(height: 30),
-
-              SizedBox(
-                width: double.infinity,
-                child: ElevatedButton(
-                  onPressed: saving ? null : saveLog,
-                  child: saving
-                      ? const CircularProgressIndicator()
-                      : const Text('Save'),
+      return Scaffold(
+        appBar: AppBar(title: const Text('Vehicle Log')),
+        resizeToAvoidBottomInset: true,
+        body: SafeArea(
+          child: LayoutBuilder(
+            builder: (context, constraints) {
+              return SingleChildScrollView(
+                padding: EdgeInsets.fromLTRB(
+                  16,
+                  16,
+                  16,
+                  MediaQuery.of(context).viewInsets.bottom + 24,
                 ),
-              ),
-            ],
+                child: ConstrainedBox(
+                  constraints: BoxConstraints(
+                    minHeight: constraints.maxHeight,
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: vehicles
+                            .map((v) => Expanded(child: vehicleTile(v)))
+                            .toList(),
+                      ),
+
+                      const SizedBox(height: 20),
+
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          const Text('Private'),
+                          Switch(
+                            value: isBusiness,
+                            onChanged: (value) {
+                              setState(() {
+                                isBusiness = value;
+                              });
+                            },
+                          ),
+                          const Text('Business'),
+                        ],
+                      ),
+
+                      const SizedBox(height: 20),
+
+                      Text(
+                        'Driver\n$driverName',
+                        style: const TextStyle(
+                          fontSize: 20,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+
+                      const SizedBox(height: 20),
+
+                      TextField(
+                        controller: startKmController,
+                        keyboardType: TextInputType.number,
+                        decoration:
+                            const InputDecoration(labelText: 'Start KM'),
+                      ),
+
+                      const SizedBox(height: 20),
+
+                      TextField(
+                        controller: endKmController,
+                        keyboardType: TextInputType.number,
+                        decoration:
+                            const InputDecoration(labelText: 'End KM'),
+                      ),
+
+                      const SizedBox(height: 20),
+
+                      TextField(
+                        controller: notesController,
+                        decoration:
+                            const InputDecoration(labelText: 'Notes'),
+                      ),
+
+                      const SizedBox(height: 40),
+
+                      SizedBox(
+                        width: double.infinity,
+                        child: ElevatedButton(
+                          onPressed: saving ? null : saveLog,
+                          child: saving
+                              ? const SizedBox(
+                                  height: 20,
+                                  width: 20,
+                                  child: CircularProgressIndicator(
+                                      strokeWidth: 2),
+                                )
+                              : const Text('Save'),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              );
+            },
           ),
         ),
-      ),
-    );
-  }
+      );
+    }
 }

@@ -1,0 +1,90 @@
+import 'package:flutter/material.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
+import '../services/app_session.dart';
+
+class ManageUsersPage extends StatefulWidget {
+  const ManageUsersPage({super.key});
+
+  @override
+  State<ManageUsersPage> createState() => _ManageUsersPageState();
+}
+
+class _ManageUsersPageState extends State<ManageUsersPage> {
+  final supabase = Supabase.instance.client;
+  final emailController = TextEditingController();
+  bool loading = false;
+
+  Future<void> addHelper() async {
+    final email = emailController.text.trim();
+    if (email.isEmpty) return;
+
+    setState(() => loading = true);
+
+    try {
+      // Create auth user (temporary password)
+      final response = await supabase.auth.admin.createUser(
+        AdminUserAttributes(
+          email: email,
+          password: 'Temp1234!',
+          emailConfirm: true,
+        ),
+      );
+
+      final newUserId = response.user!.id;
+
+      // Insert into app_users
+      await supabase.from('app_users').insert({
+        'id': newUserId,
+        'business_id': AppSession().businessId,
+        'role': 'helper',
+      });
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Helper added successfully')),
+      );
+
+      emailController.clear();
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Error: $e')),
+      );
+    }
+
+    setState(() => loading = false);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final session = AppSession();
+
+    if (!session.isOwner) {
+      return const Scaffold(
+        body: Center(child: Text("Only owners can manage users")),
+      );
+    }
+
+    return Scaffold(
+      appBar: AppBar(title: const Text("Manage Users")),
+      body: Padding(
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          children: [
+            TextField(
+              controller: emailController,
+              decoration: const InputDecoration(
+                labelText: "Helper Email",
+              ),
+            ),
+            const SizedBox(height: 20),
+            ElevatedButton(
+              onPressed: loading ? null : addHelper,
+              child: loading
+                  ? const CircularProgressIndicator()
+                  : const Text("Add Helper"),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}

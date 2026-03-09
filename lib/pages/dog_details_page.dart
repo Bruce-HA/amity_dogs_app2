@@ -1,10 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
-
+import '../tabs/dog_breeding_tab.dart';
 import '../tabs/dog_photos_tab.dart';
 import '../tabs/dog_files_tab.dart';
 import '../tabs/dog_notes_tab.dart';
-import '../tabs/dog_correspondence_tab.dart';
 
 class DogDetailsPage extends StatefulWidget {
   final String dogId;
@@ -345,7 +344,7 @@ class _DogDetailsPageState extends State<DogDetailsPage> {
                       Tab(text: "Photos"),
                       Tab(text: "Files"),
                       Tab(text: "Notes"),
-                      Tab(text: "Correspondence"),
+                      Tab(text: "Breeding"),
                     ],
                   ),
 
@@ -362,7 +361,7 @@ class _DogDetailsPageState extends State<DogDetailsPage> {
                           dogAla: dog!['dog_ala'],
                         ),
                         DogNotesTab(dogId: dog!['id']),
-                        DogCorrespondenceTab(dogId: dog!['id']),
+                        DogBreedingTab(dogId: dog!['id']),
                       ],
                     ),
                   ),

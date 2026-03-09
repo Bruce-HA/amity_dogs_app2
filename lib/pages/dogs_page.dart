@@ -16,7 +16,6 @@ class _DogsPageState extends State<DogsPage> {
 
   List<Map<String, dynamic>> allDogs = [];
   List<Map<String, dynamic>> filteredDogs = [];
-  Map<String, String> heroMap = {};
 
   bool loading = true;
 
@@ -34,18 +33,88 @@ class _DogsPageState extends State<DogsPage> {
     'Spay Overdue',
   ];
 
+  final String baseUrl =
+      'https://phkwizyrpfzoecugpshb.supabase.co/storage/v1/object/public/dog_files';
+
   @override
   void initState() {
     super.initState();
     loadDogs();
   }
 
-  // =========================
-  // AGE HELPERS
-  // =========================
+  Future<void> loadDogs() async {
+    setState(() => loading = true);
+
+    final response =
+        await supabase.from('dogs').select().order('dob', ascending: false);
+
+    allDogs = List<Map<String, dynamic>>.from(response);
+
+    applyFilters();
+
+    setState(() => loading = false);
+  }
+
+    void applyFilters() {
+    filteredDogs = allDogs.where((dog) {
+      final name = (dog['dog_name'] ?? '').toString().toLowerCase();
+      final phone = (dog['phone_1st'] ?? '').toString().toLowerCase();
+      final microchip = (dog['microchip'] ?? '').toString().toLowerCase();
+      final ala = (dog['dog_ala'] ?? '').toString().toLowerCase();
+
+      final matchesSearch =
+          name.contains(searchText) ||
+          phone.contains(searchText) ||
+          microchip.contains(searchText) ||
+          ala.contains(searchText);
+
+      bool matchesFilter = true;
+
+      if (selectedFilter == 'Spay Scheduled') {
+        matchesFilter = dog['spay_due'] != null &&
+            DateTime.tryParse(dog['spay_due'] ?? '') != null;
+      } else if (selectedFilter == 'Spay Due Soon') {
+        final due = DateTime.tryParse(dog['spay_due'] ?? '');
+        if (due == null) {
+          matchesFilter = false;
+        } else {
+          final days = due.difference(DateTime.now()).inDays;
+          matchesFilter = days >= 0 && days <= 30;
+        }
+      } else if (selectedFilter == 'Spay Overdue') {
+        final due = DateTime.tryParse(dog['spay_due'] ?? '');
+        if (due == null) {
+          matchesFilter = false;
+        } else {
+          final days = due.difference(DateTime.now()).inDays;
+          matchesFilter = days < 0;
+        }
+      } else if (selectedFilter != 'All') {
+        final type =
+            (dog['dog_type'] ?? '').toString().trim().toLowerCase();
+        final filter =
+            selectedFilter.trim().toLowerCase();
+
+        matchesFilter = type == filter;
+      }
+
+      return matchesSearch && matchesFilter;
+    }).toList();
+
+    filteredDogs.sort((a, b) {
+      final aDue = DateTime.tryParse(a['spay_due'] ?? '');
+      final bDue = DateTime.tryParse(b['spay_due'] ?? '');
+
+      if (aDue == null && bDue == null) return 0;
+      if (aDue == null) return 1;
+      if (bDue == null) return -1;
+
+      return aDue.compareTo(bDue);
+    });
+  }
 
   String calculateAge(String? dobStr) {
-    if (dobStr == null) return '';
+    if (dobStr == null || dobStr.isEmpty) return '';
 
     final dob = DateTime.tryParse(dobStr);
     if (dob == null) return '';
@@ -64,7 +133,7 @@ class _DogsPageState extends State<DogsPage> {
   }
 
   Color getAgeColor(String? dobStr) {
-    if (dobStr == null) return Colors.black;
+    if (dobStr == null || dobStr.isEmpty) return Colors.black;
 
     final dob = DateTime.tryParse(dobStr);
     if (dob == null) return Colors.black;
@@ -77,82 +146,7 @@ class _DogsPageState extends State<DogsPage> {
 
     if (years < 1) return Colors.orange;
     if (years < 5) return Colors.green;
-
     return Colors.red;
-  }
-
-  // =========================
-  // LOAD DATA
-  // =========================
-
-  Future<void> loadDogs() async {
-    setState(() => loading = true);
-
-    final dogsResponse = await supabase
-        .from('dogs')
-        .select()
-        .order('dob', ascending: false);
-
-    allDogs = List<Map<String, dynamic>>.from(dogsResponse);
-
-    final heroResponse = await supabase
-        .from('dog_photos')
-        .select('dog_id, url')
-        .eq('is_hero', true);
-
-    heroMap.clear();
-    for (var hero in heroResponse) {
-      heroMap[hero['dog_id']] = hero['url'];
-    }
-
-    applyFilters();
-
-    setState(() => loading = false);
-  }
-
-  void applyFilters() {
-    filteredDogs = allDogs.where((dog) {
-      final name = (dog['dog_name'] ?? '').toString().toLowerCase();
-      final microchip =
-          (dog['microchip'] ?? '').toString().toLowerCase();
-      final ala = (dog['dog_ala'] ?? '').toString().toLowerCase();
-
-      final matchesSearch =
-          name.contains(searchText) ||
-          microchip.contains(searchText) ||
-          ala.contains(searchText);
-
-      bool matchesFilter = true;
-
-      if (selectedFilter == 'Spay Scheduled') {
-        matchesFilter = dog['spay_due'] != null;
-      } else if (selectedFilter == 'Spay Due Soon') {
-        final dueStr = dog['spay_due'];
-        if (dueStr == null) {
-          matchesFilter = false;
-        } else {
-          final due = DateTime.parse(dueStr);
-          final days =
-              due.difference(DateTime.now()).inDays;
-          matchesFilter = days >= 0 && days <= 30;
-        }
-      } else if (selectedFilter == 'Spay Overdue') {
-        final dueStr = dog['spay_due'];
-        if (dueStr == null) {
-          matchesFilter = false;
-        } else {
-          final due = DateTime.parse(dueStr);
-          final days =
-              due.difference(DateTime.now()).inDays;
-          matchesFilter = days < 0;
-        }
-      } else if (selectedFilter != 'All') {
-        matchesFilter =
-            dog['dog_type'] == selectedFilter;
-      }
-
-      return matchesSearch && matchesFilter;
-    }).toList();
   }
 
   void openDog(String id) {
@@ -164,71 +158,57 @@ class _DogsPageState extends State<DogsPage> {
     );
   }
 
-  // =========================
-  // DOG TILE
-  // =========================
-
-  Widget buildDogTile(Map<String, dynamic> dog) {
-    final age = calculateAge(dog['dob']);
-    final heroFile = heroMap[dog['id']];
+  Widget buildHeroImage(Map<String, dynamic> dog) {
     final ala = dog['dog_ala'];
-    
-    final sex = dog['sex'];
-    final isFemale = sex == 'Female';
-    final isMale = sex == 'Male';
 
-    Widget leadingWidget;
-
-    if (heroFile == null || ala == null) {
-      leadingWidget = const CircleAvatar(
-        radius: 28,
-        child: Icon(Icons.pets),
-      );
-    } else {
-      final imageUrl = supabase.storage
-          .from('dog_files')
-          .getPublicUrl('$ala/photos/$heroFile');
-
-      leadingWidget = CircleAvatar(
-        radius: 28,
-        backgroundImage: NetworkImage(imageUrl),
+    if (ala == null || ala.toString().isEmpty) {
+      return Image.asset(
+        'assets/images/no_photo.png',
+        width: 72,
+        height: 72,
+        fit: BoxFit.cover,
       );
     }
 
+    final url = '$baseUrl/$ala/photos/hero.jpg';
+
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(8),
+      child: Image.network(
+        url,
+        width: 72,
+        height: 72,
+        fit: BoxFit.cover,
+        errorBuilder: (_, __, ___) {
+          return Image.asset(
+            'assets/images/no_photo.png',
+            width: 72,
+            height: 72,
+            fit: BoxFit.cover,
+          );
+        },
+      ),
+    );
+  }
+
+  Widget buildDogTile(Map<String, dynamic> dog) {
+    final age = calculateAge(dog['dob']);
+
     return Card(
-      margin:
-          const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+      margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
       child: ListTile(
-        leading: leadingWidget,
-        title: Row(
-          children: [
-
-            Expanded(
-              child: Text(
-                dog['dog_name'] ?? '',
-                style: const TextStyle(fontWeight: FontWeight.bold),
-                overflow: TextOverflow.ellipsis,
-              ),
-            ),
-
-            if (isFemale) ...[
-              const SizedBox(width: 6),
-              const Icon(Icons.female, color: Colors.pink, size: 17),
-            ],
-
-            if (isMale) ...[
-              const SizedBox(width: 6),
-              const Icon(Icons.male, color: Colors.blue, size: 17),
-            ],
-
-          ],
+        leading: buildHeroImage(dog),
+        title: Text(
+          dog['dog_name'] ?? '',
+          style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
         ),
         subtitle: Column(
-          crossAxisAlignment:
-              CrossAxisAlignment.start,
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text('ALA: ${dog['dog_ala'] ?? ''}'),
             Text(dog['dog_type'] ?? ''),
+            Text('Microchip: ${dog['microchip'] ?? ''}'),
+            Text('Sex: ${dog['sex'] ?? ''}'),
             Text(
               'Age: $age',
               style: TextStyle(
@@ -246,63 +226,60 @@ class _DogsPageState extends State<DogsPage> {
     );
   }
 
-  // =========================
-  // BUILD
-  // =========================
-
   @override
   Widget build(BuildContext context) {
-    if (loading) {
-      return const Center(
-        child: CircularProgressIndicator(),
-      );
-    }
-
-    return Column(
-      children: [
-        Padding(
-          padding: const EdgeInsets.all(12),
-          child: TextField(
-            decoration: const InputDecoration(
-              hintText: 'Search Name, ALA, Microchip',
-              prefixIcon: Icon(Icons.search),
-              border: OutlineInputBorder(),
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Dogs'),
+      ),
+      body: loading
+          ? const Center(child: CircularProgressIndicator())
+          : SafeArea(
+              child: Column(
+                children: [
+                  Padding(
+                    padding: const EdgeInsets.all(12),
+                    child: TextField(
+                      decoration: const InputDecoration(
+                        hintText: 'Search Name, ALA, Microchip',
+                        prefixIcon: Icon(Icons.search),
+                        border: OutlineInputBorder(),
+                      ),
+                      onChanged: (value) {
+                        searchText = value.toLowerCase();
+                        applyFilters();
+                        setState(() {});
+                      },
+                    ),
+                  ),
+                  Padding(
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 12),
+                    child: DropdownButtonFormField(
+                      value: selectedFilter,
+                      items: filters
+                          .map((e) => DropdownMenuItem(
+                                value: e,
+                                child: Text(e),
+                              ))
+                          .toList(),
+                      onChanged: (value) {
+                        selectedFilter = value!;
+                        applyFilters();
+                        setState(() {});
+                      },
+                    ),
+                  ),
+                  Expanded(
+                    child: ListView.builder(
+                      itemCount: filteredDogs.length,
+                      itemBuilder: (_, i) =>
+                          buildDogTile(filteredDogs[i]),
+                    ),
+                  ),
+                ],
+              ),
             ),
-            onChanged: (value) {
-              searchText = value.toLowerCase();
-              applyFilters();
-              setState(() {});
-            },
-          ),
-        ),
-        Padding(
-          padding:
-              const EdgeInsets.symmetric(horizontal: 12),
-          child: DropdownButtonFormField(
-            initialValue: selectedFilter,
-            items: filters
-                .map((e) => DropdownMenuItem(
-                      value: e,
-                      child: Text(e),
-                    ))
-                .toList(),
-            onChanged: (value) {
-              selectedFilter = value!;
-              applyFilters();
-              setState(() {});
-            },
-          ),
-        ),
-        Expanded(
-          child: ListView.builder(
-            itemCount: filteredDogs.length,
-            itemBuilder: (_, i) =>
-                buildDogTile(filteredDogs[i]),
-
-                
-          ),
-        ),
-      ],
     );
   }
 }
