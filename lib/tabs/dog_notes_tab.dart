@@ -91,62 +91,85 @@ class _DogNotesTabState extends State<DogNotesTab> {
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
+      backgroundColor: Colors.white,
       builder: (context) {
-        return Padding(
-          padding: EdgeInsets.only(
-            bottom: MediaQuery.of(context).viewInsets.bottom,
-            left: 16,
-            right: 16,
-            top: 20,
-          ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text(
-                note == null ? 'Add Note' : 'Edit Note',
-                style: const TextStyle(
-                    fontSize: 18, fontWeight: FontWeight.bold),
+        return DraggableScrollableSheet(
+          expand: false,
+          initialChildSize: 0.95,
+          minChildSize: 0.7,
+          maxChildSize: 0.95,
+          builder: (_, scrollController) {
+            return Scaffold(
+              appBar: AppBar(
+                automaticallyImplyLeading: false,
+                title: Text(note == null ? 'Add Note' : 'Edit Note'),
+                leading: IconButton(
+                  icon: const Icon(Icons.close),
+                  onPressed: () => Navigator.pop(context),
+                ),
+                actions: [
+                  Padding(
+                    padding: const EdgeInsets.only(right: 12),
+                    child: GestureDetector(
+                      onTap: () async {
+                        if (note == null) {
+                          await addNote(
+                            titleController.text,
+                            textController.text,
+                          );
+                        } else {
+                          await updateNote(
+                            note['id'],
+                            titleController.text,
+                            textController.text,
+                          );
+                        }
+
+                        if (context.mounted) Navigator.pop(context);
+                      },
+                      child: const CircleAvatar(
+                        radius: 18,
+                        child: Icon(Icons.check),
+                      ),
+                    ),
+                  ),
+                ],
               ),
-              const SizedBox(height: 12),
+              body: Padding(
+                padding: EdgeInsets.only(
+                  left: 16,
+                  right: 16,
+                  bottom: MediaQuery.of(context).viewInsets.bottom,
+                ),
+                child: ListView(
+                  controller: scrollController,
+                  children: [
+                    const SizedBox(height: 10),
 
-              TextField(
-                controller: titleController,
-                decoration: const InputDecoration(labelText: 'Title'),
+                    TextField(
+                      controller: titleController,
+                      decoration: const InputDecoration(
+                        labelText: 'Title',
+                      ),
+                    ),
+
+                    const SizedBox(height: 16),
+
+                    TextField(
+                      controller: textController,
+                      maxLines: null,
+                      keyboardType: TextInputType.multiline,
+                      decoration: const InputDecoration(
+                        labelText: 'Note',
+                      ),
+                    ),
+
+                    const SizedBox(height: 40),
+                  ],
+                ),
               ),
-
-              const SizedBox(height: 10),
-
-              TextField(
-                controller: textController,
-                maxLines: 6,
-                decoration: const InputDecoration(labelText: 'Note'),
-              ),
-
-              const SizedBox(height: 20),
-
-              ElevatedButton(
-                onPressed: () async {
-                  if (note == null) {
-                    await addNote(
-                      titleController.text,
-                      textController.text,
-                    );
-                  } else {
-                    await updateNote(
-                      note['id'],
-                      titleController.text,
-                      textController.text,
-                    );
-                  }
-
-                  if (context.mounted) Navigator.pop(context);
-                },
-                child: const Text('Save'),
-              ),
-
-              const SizedBox(height: 20),
-            ],
-          ),
+            );
+          },
         );
       },
     );

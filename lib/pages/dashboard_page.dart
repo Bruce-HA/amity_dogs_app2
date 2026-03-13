@@ -18,7 +18,7 @@ class DashboardPage extends StatelessWidget {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Amity Dogs'),
+        title: const Text('Amity Dogs Dash'),
         centerTitle: true,
       ),
      

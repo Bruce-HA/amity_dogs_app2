@@ -6,8 +6,16 @@ class ToolsPage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Tools')),
-      body: const Center(child: Text('System Tools')),
+      appBar: AppBar(
+        title: const Text('Tools'),
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back),
+          onPressed: () => Navigator.of(context).pop(),
+        ),
+      ),
+      body: const Center(
+        child: Text('System Tools'),
+      ),
     );
   }
 }

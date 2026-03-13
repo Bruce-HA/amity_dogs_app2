@@ -36,8 +36,12 @@ class _PeopleDetailPageState extends State<PeopleDetailPage> {
 
     final dogResponse = await supabase
         .from('dogs')
-        .select('id, dog_name, dog_ala, pet_name, dog_status')
-        .eq('owner_person_id', widget.personId);
+        .select()
+        .or(
+          'breeder_person_id.eq.${widget.personId},'
+          'owner_person_id.eq.${widget.personId},'
+          'guardian_person_id.eq.${widget.personId}',
+        );
 
     if (!mounted) return;
 
@@ -48,36 +52,47 @@ class _PeopleDetailPageState extends State<PeopleDetailPage> {
     });
   }
 
+  String getRole(Map<String, dynamic> dog) {
+    if (dog['breeder_person_id'] == widget.personId) return "Breeder";
+    if (dog['owner_person_id'] == widget.personId) return "Owner";
+    if (dog['guardian_person_id'] == widget.personId) return "Guardian";
+    return "";
+  }
+
   @override
   Widget build(BuildContext context) {
     if (loading) {
-      return Scaffold(
-        appBar: AppBar(title: const Text("Owner Details")),
-        body: const Center(
-          child: CircularProgressIndicator(),
-        ),
+      return const Scaffold(
+        body: Center(child: CircularProgressIndicator()),
       );
     }
 
+    final displayName =
+        (person?['business_name'] != null &&
+                person!['business_name'].toString().isNotEmpty)
+            ? person!['business_name']
+            : "${person?['first_name_1st'] ?? ''} ${person?['last_name_1st'] ?? ''}";
+
     return Scaffold(
-      appBar: AppBar(title: const Text("Owner Details")),
+      appBar: AppBar(title: Text(displayName)),
       body: Padding(
         padding: const EdgeInsets.all(16),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
-              '${person?['first_name_1st'] ?? ''} '
-              '${person?['last_name_1st'] ?? ''}',
+              displayName,
               style: const TextStyle(
                   fontSize: 22, fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: 20),
+
             const Text(
               "Dogs",
               style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: 10),
+
             if (dogs.isEmpty)
               const Text("No dogs linked.")
             else
@@ -86,12 +101,13 @@ class _PeopleDetailPageState extends State<PeopleDetailPage> {
                   itemCount: dogs.length,
                   itemBuilder: (context, index) {
                     final dog = dogs[index];
+                    final role = getRole(dog);
 
                     return Card(
                       child: ListTile(
                         title: Text(dog['dog_name'] ?? ''),
                         subtitle: Text(
-                          '${dog['dog_ala']} • ${dog['pet_name'] ?? ''} • ${dog['dog_status'] ?? ''}',
+                          '${dog['dog_ala']} • $role',
                         ),
                         onTap: () {
                           Navigator.push(

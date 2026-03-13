@@ -230,7 +230,7 @@ class _DogsPageState extends State<DogsPage> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Dogs'),
+        title: const Text('Dogs Main'),
       ),
       body: loading
           ? const Center(child: CircularProgressIndicator())
