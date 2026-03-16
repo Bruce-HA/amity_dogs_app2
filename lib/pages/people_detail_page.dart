@@ -1,6 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
-import 'dog_details_page.dart';
+import 'package:url_launcher/url_launcher.dart';
+
+import '../tabs/dog_notes_tab.dart';
+import '../tabs/dog_files_tab.dart';
+import '../tabs/dog_correspondence_tab.dart';
 
 class PeopleDetailPage extends StatefulWidget {
   final String personId;
@@ -18,7 +22,6 @@ class _PeopleDetailPageState extends State<PeopleDetailPage> {
   final supabase = Supabase.instance.client;
 
   Map<String, dynamic>? person;
-  List<Map<String, dynamic>> dogs = [];
   bool loading = true;
 
   @override
@@ -28,101 +31,275 @@ class _PeopleDetailPageState extends State<PeopleDetailPage> {
   }
 
   Future<void> loadData() async {
-    final personResponse = await supabase
+    final response = await supabase
         .from('people')
         .select()
         .eq('people_id', widget.personId)
         .single();
 
-    final dogResponse = await supabase
-        .from('dogs')
-        .select()
-        .or(
-          'breeder_person_id.eq.${widget.personId},'
-          'owner_person_id.eq.${widget.personId},'
-          'guardian_person_id.eq.${widget.personId}',
-        );
-
-    if (!mounted) return;
-
     setState(() {
-      person = personResponse;
-      dogs = List<Map<String, dynamic>>.from(dogResponse);
+      person = response;
       loading = false;
     });
   }
 
-  String getRole(Map<String, dynamic> dog) {
-    if (dog['breeder_person_id'] == widget.personId) return "Breeder";
-    if (dog['owner_person_id'] == widget.personId) return "Owner";
-    if (dog['guardian_person_id'] == widget.personId) return "Guardian";
-    return "";
+  // =========================================================
+  // ACTIONS
+  // =========================================================
+
+  Future<void> _launch(String url) async {
+    final uri = Uri.parse(url);
+    await launchUrl(uri, mode: LaunchMode.externalApplication);
   }
+
+  void call(String? phone) {
+    if (phone == null || phone.isEmpty) return;
+    _launch("tel:$phone");
+  }
+
+  void email(String? email) {
+    if (email == null || email.isEmpty) return;
+    _launch("mailto:$email");
+  }
+
+  void whatsapp(String? phone) {
+    if (phone == null || phone.isEmpty) return;
+    final cleaned = phone.replaceAll(RegExp(r'[^0-9]'), '');
+    _launch("https://wa.me/$cleaned");
+  }
+  void openWaze(String address) {
+    _launch(
+      "https://waze.com/ul?q=${Uri.encodeComponent(address)}&navigate=yes",
+    );
+  }
+
+  void openAppleMaps(String address) {
+    _launch(
+      "https://maps.apple.com/?daddr=${Uri.encodeComponent(address)}",
+    );
+  }
+  void openGoogleMaps(String address) {
+    _launch(
+        "https://www.google.com/maps/dir/?api=1&destination=${Uri.encodeComponent(address)}");
+  }
+
+  // =========================================================
+  // ROLE CHIP
+  // =========================================================
+
+  Widget roleChip(String label, bool enabled, Color color) {
+    if (!enabled) return const SizedBox();
+    return Padding(
+      padding: const EdgeInsets.only(right: 8, bottom: 8),
+      child: Chip(
+        label: Text(label),
+        backgroundColor: color.withOpacity(.15),
+        labelStyle: TextStyle(color: color),
+      ),
+    );
+  }
+
+  // =========================================================
 
   @override
   Widget build(BuildContext context) {
-    if (loading) {
+    if (loading || person == null) {
       return const Scaffold(
         body: Center(child: CircularProgressIndicator()),
       );
     }
 
-    final displayName =
-        (person?['business_name'] != null &&
-                person!['business_name'].toString().isNotEmpty)
-            ? person!['business_name']
-            : "${person?['first_name_1st'] ?? ''} ${person?['last_name_1st'] ?? ''}";
+    final business = person!['business_name'] ?? '';
+    final first1 = person!['first_name_1st'] ?? '';
+    final last1 = person!['last_name_1st'] ?? '';
+    final phone1 = person!['phone_1st'] ?? '';
+    final email1 = person!['email_1st'] ?? '';
 
-    return Scaffold(
-      appBar: AppBar(title: Text(displayName)),
-      body: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+    final street = person!['street_address'] ?? '';
+    final suburb = person!['suburb_address'] ?? '';
+    final postcode = person!['postcode_address'] ?? '';
+    final state = person!['state_address'] ?? '';
+
+    final fullAddress = "$street, $suburb, $postcode $state";
+
+    final hasAddress = fullAddress.trim().replaceAll(',', '').isNotEmpty;
+
+    final displayName = business.toString().isNotEmpty
+        ? business
+        : "$first1 $last1";
+
+    return DefaultTabController(
+      length: 3,
+      child: Scaffold(
+        appBar: AppBar(
+          title: Text(displayName),
+          centerTitle: true,
+          actions: [
+            IconButton(
+              icon: const Icon(Icons.edit),
+              onPressed: () {
+                // TODO: push edit screen
+              },
+            ),
+          ],
+        ),
+
+        // ===============================
+        // BODY
+        // ===============================
+
+        body: Column(
           children: [
-            Text(
-              displayName,
-              style: const TextStyle(
-                  fontSize: 22, fontWeight: FontWeight.bold),
-            ),
-            const SizedBox(height: 20),
 
-            const Text(
-              "Dogs",
-              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-            ),
-            const SizedBox(height: 10),
+            // ===============================
+            // PREMIUM HEADER CARD
+            // ===============================
 
-            if (dogs.isEmpty)
-              const Text("No dogs linked.")
-            else
-              Expanded(
-                child: ListView.builder(
-                  itemCount: dogs.length,
-                  itemBuilder: (context, index) {
-                    final dog = dogs[index];
-                    final role = getRole(dog);
+            Card(
+              margin: const EdgeInsets.all(16),
+              elevation: 4,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(16),
+              ),
+              child: Padding(
+                padding: const EdgeInsets.all(20),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
 
-                    return Card(
-                      child: ListTile(
-                        title: Text(dog['dog_name'] ?? ''),
-                        subtitle: Text(
-                          '${dog['dog_ala']} • $role',
+                    Text(
+                      business,
+                      style: const TextStyle(
+                          fontSize: 22, fontWeight: FontWeight.bold),
+                    ),
+
+                    const SizedBox(height: 10),
+
+                    Text(
+                      "$first1 $last1",
+                      style: const TextStyle(fontSize: 18),
+                    ),
+
+                    const SizedBox(height: 12),
+
+                    Row(
+                      children: [
+
+                        Tooltip(
+                          message: phone1.isEmpty ? "No phone number" : "Call $phone1",
+                          child: IconButton(
+                            icon: const Icon(Icons.phone),
+                            onPressed: phone1.isEmpty ? null : () => call(phone1),
+                          ),
                         ),
-                        onTap: () {
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (_) =>
-                                  DogDetailsPage(dogId: dog['id']),
-                            ),
-                          );
-                        },
-                      ),
-                    );
-                  },
+
+                        Tooltip(
+                          message: email1.isEmpty ? "No email address" : "Email $email1",
+                          child: IconButton(
+                            icon: const Icon(Icons.email),
+                            onPressed: email1.isEmpty ? null : () => email(email1),
+                          ),
+                        ),
+
+                        Tooltip(
+                          message: phone1.isEmpty ? "No phone for WhatsApp" : "WhatsApp $phone1",
+                          child: IconButton(
+                            icon: const Icon(Icons.chat),
+                            onPressed: phone1.isEmpty ? null : () => whatsapp(phone1),
+                          ),
+                        ),
+                      ],
+                    ),
+
+                    const Divider(height: 30),
+
+                    Text(
+                      fullAddress,
+                      style: const TextStyle(fontSize: 14),
+                    ),
+
+                    Row(
+                      children: [
+
+                        Tooltip(
+                          message: hasAddress ? "Open in Google Maps" : "No address available",
+                          child: IconButton(
+                            icon: const Icon(Icons.map),
+                            onPressed: hasAddress ? () => openGoogleMaps(fullAddress) : null,
+                          ),
+                        ),
+
+
+                        Tooltip(
+                          message: hasAddress ? "Open in Waze" : "No address available",
+                          child: IconButton(
+                            icon: const Icon(Icons.navigation),
+                            onPressed: hasAddress ? () => openWaze(fullAddress) : null,
+                          ),
+                        ),
+
+                        Tooltip(
+                          message: hasAddress ? "Open in Apple Maps" : "No address available",
+                          child: IconButton(
+                            icon: const Icon(Icons.location_on),
+                            onPressed: hasAddress ? () => openAppleMaps(fullAddress) : null,
+                          ),
+                        ),
+                        
+
+                      ],
+                    ),
+
+                    const SizedBox(height: 10),
+
+                    Wrap(
+                      children: [
+                        roleChip("Breeder",
+                            person!['is_breeder'] ?? false, Colors.purple),
+                        roleChip("Owner",
+                            person!['is_owner'] ?? false, Colors.blue),
+                        roleChip("Guardian",
+                            person!['is_guardian'] ?? false, Colors.teal),
+                        roleChip("Supplier",
+                            person!['is_supplier'] ?? false, Colors.orange),
+                        roleChip("Buyer",
+                            person!['is_buyer'] ?? false, Colors.green),
+                        roleChip("Prospect",
+                            person!['is_prospect'] ?? false, Colors.grey),
+                      ],
+                    ),
+                  ],
                 ),
               ),
+            ),
+
+            // ===============================
+            // TABS (Like DogDetailsPage)
+            // ===============================
+
+            const TabBar(
+              labelColor: Colors.teal,
+              unselectedLabelColor: Colors.grey,
+              indicatorColor: Colors.teal,
+              tabs: [
+                Tab(text: "Notes"),
+                Tab(text: "Files"),
+                Tab(text: "Correspondence"),
+              ],
+            ),
+
+            Expanded(
+              child: TabBarView(
+                children: [
+                  DogNotesTab(dogId: widget.personId), // reuse logic pattern
+                  DogFilesTab(
+                    dogId: widget.personId,
+                    dogAla: displayName,
+                  ),
+                  DogCorrespondenceTab(dogId: widget.personId),
+                ],
+              ),
+            ),
           ],
         ),
       ),

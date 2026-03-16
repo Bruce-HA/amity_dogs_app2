@@ -47,34 +47,33 @@ class DashboardPage extends StatelessWidget {
     String title,
     Widget page,
   ) {
-    return GestureDetector(
+    return InkWell(
       onTap: () {
         Navigator.push(
           context,
           MaterialPageRoute(builder: (_) => page),
         );
       },
-      
-      child: Card(
-        elevation: 4,
-        shape: RoundedRectangleBorder(
+      borderRadius: BorderRadius.circular(20),
+      child: Container(
+        decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(20),
+          color: Theme.of(context).cardColor,
         ),
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
+          crossAxisAlignment: CrossAxisAlignment.center, // ✅ Important
           children: [
-            Icon(icon, size: 48),
+            Icon(icon, size: 40),
             const SizedBox(height: 12),
             Text(
               title,
-              style: const TextStyle(
-                fontSize: 18,
-                fontWeight: FontWeight.w600,
-              ),
+              textAlign: TextAlign.center, // ✅ THIS fixes Vehicle Log
+              style: Theme.of(context).textTheme.titleMedium,
             ),
           ],
         ),
       ),
     );
   }
-}
+  }

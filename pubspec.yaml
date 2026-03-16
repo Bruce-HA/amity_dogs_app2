@@ -39,11 +39,12 @@ dependencies:
   share_plus: ^9.0.0
   url_launcher: ^6.3.0
   table_calendar: ^3.0.9
-
+  syncfusion_flutter_pdf: ^24.1.41
   image_picker: ^1.0.7
   file_picker: ^8.0.0
   reorderable_grid_view: ^2.2.6
   path: ^1.9.0
+  provider: ^6.1.2
 
   
   # The following adds the Cupertino Icons font to your application.

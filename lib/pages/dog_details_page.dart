@@ -4,7 +4,8 @@ import '../tabs/dog_breeding_tab.dart';
 import '../tabs/dog_photos_tab.dart';
 import '../tabs/dog_files_tab.dart';
 import '../tabs/dog_notes_tab.dart';
-import '../pages/people_detail_page.dart';
+import 'people_detail_page.dart';
+import '../tabs/dna_tab.dart';
 
 class DogDetailsPage extends StatefulWidget {
   final String dogId;
@@ -17,7 +18,9 @@ class DogDetailsPage extends StatefulWidget {
   @override
   State<DogDetailsPage> createState() => _DogDetailsPageState();
 }
-
+//
+ 
+//
 class _DogDetailsPageState extends State<DogDetailsPage> {
   final supabase = Supabase.instance.client;
 
@@ -28,18 +31,61 @@ class _DogDetailsPageState extends State<DogDetailsPage> {
   Map<String, dynamic>? mother;
   Map<String, dynamic>? father;
 
-  bool loading = true;
-  bool editMode = false;
+  String? heroUrl;
 
-  final nameController = TextEditingController();
-  final alaController = TextEditingController();
-  final microchipController = TextEditingController();
+  bool loading = true;
 
   @override
   void initState() {
     super.initState();
     loadDog();
   }
+  //=========
+  Widget buildSpayChip(String? raw) {
+    if (raw == null) return const SizedBox();
+
+    final due = DateTime.parse(raw);
+    final now = DateTime.now();
+    final difference = due.difference(now).inDays;
+
+    Color color;
+    if (difference <= 60) {
+      color = Colors.red;
+    } else if (difference <= 120) {
+      color = Colors.orange;
+    } else {
+      color = Colors.green;
+    }
+
+    return Chip(
+      label: Text(
+        "Spay Due: ${due.day}/${due.month}/${due.year}",
+      ),
+      backgroundColor: color,
+      labelStyle: const TextStyle(color: Colors.white),
+    );
+  }
+  //=========
+  Future<void> refreshHeroOnly() async {
+    final heroPhoto = await supabase
+        .from('dog_photos')
+        .select('url')
+        .eq('dog_id', widget.dogId)
+        .eq('is_hero', true)
+        .maybeSingle();
+
+    if (heroPhoto != null && heroPhoto['url'] != null) {
+      setState(() {
+        heroUrl = supabase.storage
+            .from('dog_files')
+            .getPublicUrl(
+                "${dog!['dog_ala']}/photos/${heroPhoto['url']}");
+      });
+    }
+  }
+//
+ 
+//    
 
   Future<void> loadDog() async {
     setState(() => loading = true);
@@ -52,20 +98,35 @@ class _DogDetailsPageState extends State<DogDetailsPage> {
 
     if (dogResult == null) {
       setState(() {
-        loading = false;
         dog = null;
+        loading = false;
       });
       return;
     }
 
-    // Temporary holders
+    // Load hero photo
+    final heroPhoto = await supabase
+        .from('dog_photos')
+        .select('url')
+        .eq('dog_id', widget.dogId)
+        .eq('is_hero', true)
+        .maybeSingle();
+
+    if (heroPhoto != null && heroPhoto['url'] != null) {
+      heroUrl = supabase.storage
+          .from('dog_files')
+          .getPublicUrl(
+              "${dogResult['dog_ala']}/photos/${heroPhoto['url']}");
+    } else {
+      heroUrl = null;
+    }
+
     Map<String, dynamic>? loadedBreeder;
     Map<String, dynamic>? loadedOwner;
     Map<String, dynamic>? loadedGuardian;
     Map<String, dynamic>? loadedMother;
     Map<String, dynamic>? loadedFather;
 
-    // Load breeder
     if (dogResult['breeder_person_id'] != null) {
       loadedBreeder = await supabase
           .from('people')
@@ -74,7 +135,6 @@ class _DogDetailsPageState extends State<DogDetailsPage> {
           .maybeSingle();
     }
 
-    // Load owner
     if (dogResult['owner_person_id'] != null) {
       loadedOwner = await supabase
           .from('people')
@@ -83,7 +143,6 @@ class _DogDetailsPageState extends State<DogDetailsPage> {
           .maybeSingle();
     }
 
-    // Load guardian
     if (dogResult['guardian_person_id'] != null) {
       loadedGuardian = await supabase
           .from('people')
@@ -92,10 +151,8 @@ class _DogDetailsPageState extends State<DogDetailsPage> {
           .maybeSingle();
     }
 
-    // Load mother
     if (dogResult['mother_ala'] != null &&
         dogResult['mother_ala'].toString().isNotEmpty) {
-
       final motherList = await supabase
           .from('dogs')
           .select('id, dog_name, dog_ala')
@@ -106,10 +163,8 @@ class _DogDetailsPageState extends State<DogDetailsPage> {
       }
     }
 
-    // Load father
     if (dogResult['father_ala'] != null &&
         dogResult['father_ala'].toString().isNotEmpty) {
-
       final fatherList = await supabase
           .from('dogs')
           .select('id, dog_name, dog_ala')
@@ -120,7 +175,6 @@ class _DogDetailsPageState extends State<DogDetailsPage> {
       }
     }
 
-    // FINAL STATE UPDATE
     setState(() {
       dog = dogResult;
       breeder = loadedBreeder;
@@ -145,11 +199,6 @@ class _DogDetailsPageState extends State<DogDetailsPage> {
             ? person['business_name']
             : "${person['first_name_1st'] ?? ''} ${person['last_name_1st'] ?? ''}";
 
-    final ala =
-        person['zooeasy_breeder_id'] ??
-        person['zooeasy_owner_id'] ??
-        '';
-
     return Padding(
       padding: const EdgeInsets.only(bottom: 8),
       child: GestureDetector(
@@ -168,7 +217,7 @@ class _DogDetailsPageState extends State<DogDetailsPage> {
             const SizedBox(width: 6),
             Expanded(
               child: Text(
-                "$label: $displayName ${ala != '' ? '($ala)' : ''}",
+                "$label: $displayName",
                 style: const TextStyle(
                   color: Colors.teal,
                   fontWeight: FontWeight.w600,
@@ -180,7 +229,7 @@ class _DogDetailsPageState extends State<DogDetailsPage> {
       ),
     );
   }
-//=======
+
   Widget buildParentRow({
     required String label,
     required Map<String, dynamic>? parent,
@@ -196,6 +245,7 @@ class _DogDetailsPageState extends State<DogDetailsPage> {
             MaterialPageRoute(
               builder: (_) => DogDetailsPage(dogId: parent['id']),
             ),
+        
           );
         },
         child: Row(
@@ -217,7 +267,6 @@ class _DogDetailsPageState extends State<DogDetailsPage> {
     );
   }
 
-//====
   @override
   Widget build(BuildContext context) {
     if (loading || dog == null) {
@@ -227,7 +276,7 @@ class _DogDetailsPageState extends State<DogDetailsPage> {
     }
 
     return DefaultTabController(
-      length: 4,
+      length: 5,
       child: Scaffold(
         appBar: AppBar(
           title: Text(dog!['dog_name'] ?? ''),
@@ -237,37 +286,69 @@ class _DogDetailsPageState extends State<DogDetailsPage> {
           children: [
             Expanded(
               child: SingleChildScrollView(
-                padding: const EdgeInsets.all(20),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text("ALA: ${dog?['dog_ala'] ?? ''}"),
-                    const SizedBox(height: 8),
-                    Text("Microchip: ${dog?['microchip'] ?? ''}"),
-                    const SizedBox(height: 20),
 
-                    if (mother != null)
-                      buildParentRow(label: "Mother", parent: mother),
-
-                    if (father != null)
-                      buildParentRow(label: "Father", parent: father),
-
-                    const SizedBox(height: 20),
-
-                    buildPersonRow(
-                      label: "Breeder",
-                      icon: Icons.emoji_events,
-                      person: breeder,
+                   // HERO IMAGE (smaller, centered, maintains aspect ratio)
+            if (heroUrl != null)
+              Padding(
+                padding: const EdgeInsets.only(top: 16),
+                child: Center(
+                  child: ConstrainedBox(
+                    constraints: const BoxConstraints(
+                      maxHeight: 140, // ~50% of previous 240
                     ),
-                    buildPersonRow(
-                      label: "Owner",
-                      icon: Icons.person,
-                      person: owner,
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(12),
+                      child: Image.network(
+                        heroUrl!,
+                        fit: BoxFit.contain, // maintain aspect ratio
+                      ),
                     ),
-                    buildPersonRow(
-                      label: "Guardian",
-                      icon: Icons.shield,
-                      person: guardian,
+                  ),
+                ),
+              ),
+
+                    Padding(
+                      padding: const EdgeInsets.all(20),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text("ALA: ${dog?['dog_ala'] ?? ''}"),
+                          const SizedBox(height: 8),
+                          Text("Microchip: ${dog?['microchip'] ?? ''}"),
+                            const SizedBox(height: 10),
+
+                            buildSpayChip(dog?['spay_due']),
+
+                            const SizedBox(height: 20),
+
+                            if (mother != null)
+                              buildParentRow(label: "Mother", parent: mother),
+
+                          if (father != null)
+                            buildParentRow(label: "Father", parent: father),
+
+                          const SizedBox(height: 20),
+
+                          buildPersonRow(
+                            label: "Breeder",
+                            icon: Icons.emoji_events,
+                            person: breeder,
+                          ),
+                          buildPersonRow(
+                            label: "Owner",
+                            icon: Icons.person,
+                            person: owner,
+                          ),
+                          buildPersonRow(
+                            label: "Guardian",
+                            icon: Icons.shield,
+                            person: guardian,
+                          ),
+                        ],
+                      ),
                     ),
                   ],
                 ),
@@ -282,6 +363,7 @@ class _DogDetailsPageState extends State<DogDetailsPage> {
                 Tab(text: "Photos"),
                 Tab(text: "Files"),
                 Tab(text: "Notes"),
+                Tab(text: 'DNA'),
                 Tab(text: "Breeding"),
               ],
             ),
@@ -290,16 +372,20 @@ class _DogDetailsPageState extends State<DogDetailsPage> {
               child: TabBarView(
                 children: [
                   DogPhotosTab(
-                    dogId: dog!['id'].toString(),
+                    dogId: dog!['id'],
                     dogAla: dog!['dog_ala'] ?? '',
-                    onHeroChanged: () => setState(() {}),
+                    onHeroChanged: () async {
+                      await refreshHeroOnly();
+                    },
                   ),
                   DogFilesTab(
                     dogId: dog!['id'],
                     dogAla: dog!['dog_ala'],
                   ),
                   DogNotesTab(dogId: dog!['id']),
+                  DnaTab(dogId: dog!['id']),
                   DogBreedingTab(dogId: dog!['id']),
+                  
                 ],
               ),
             ),
