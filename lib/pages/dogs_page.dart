@@ -147,10 +147,9 @@ class _DogsPageState extends State<DogsPage> {
 
       // 🔹 APPLY ORDER LAST
 
-      final response = await Supabase.instance.client
-        .from('people_sorted')
-        .select()
-        .order('sort_name', ascending: true);
+      final response = await query
+          .order('age_months', ascending: true)
+          .range(_offset, _offset + _limit - 1);
 
       final results =
           List<Map<String, dynamic>>.from(response);
