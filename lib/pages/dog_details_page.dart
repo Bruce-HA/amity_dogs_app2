@@ -1,11 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import '../utils/date_utils.dart';
 import '../tabs/dog_breeding_tab.dart';
 import '../tabs/dog_photos_tab.dart';
 import '../tabs/dog_files_tab.dart';
 import '../tabs/dog_notes_tab.dart';
-import 'people_detail_page.dart';
 import '../tabs/dna_tab.dart';
+import 'people_detail_page.dart';
+import 'dog_edit_page.dart';
 
 class DogDetailsPage extends StatefulWidget {
   final String dogId;
@@ -18,9 +20,7 @@ class DogDetailsPage extends StatefulWidget {
   @override
   State<DogDetailsPage> createState() => _DogDetailsPageState();
 }
-//
- 
-//
+
 class _DogDetailsPageState extends State<DogDetailsPage> {
   final supabase = Supabase.instance.client;
 
@@ -32,7 +32,6 @@ class _DogDetailsPageState extends State<DogDetailsPage> {
   Map<String, dynamic>? father;
 
   String? heroUrl;
-
   bool loading = true;
 
   @override
@@ -40,52 +39,10 @@ class _DogDetailsPageState extends State<DogDetailsPage> {
     super.initState();
     loadDog();
   }
-  //=========
-  Widget buildSpayChip(String? raw) {
-    if (raw == null) return const SizedBox();
 
-    final due = DateTime.parse(raw);
-    final now = DateTime.now();
-    final difference = due.difference(now).inDays;
-
-    Color color;
-    if (difference <= 60) {
-      color = Colors.red;
-    } else if (difference <= 120) {
-      color = Colors.orange;
-    } else {
-      color = Colors.green;
-    }
-
-    return Chip(
-      label: Text(
-        "Spay Due: ${due.day}/${due.month}/${due.year}",
-      ),
-      backgroundColor: color,
-      labelStyle: const TextStyle(color: Colors.white),
-    );
-  }
-  //=========
-  Future<void> refreshHeroOnly() async {
-    final heroPhoto = await supabase
-        .from('dog_photos')
-        .select('url')
-        .eq('dog_id', widget.dogId)
-        .eq('is_hero', true)
-        .maybeSingle();
-
-    if (heroPhoto != null && heroPhoto['url'] != null) {
-      setState(() {
-        heroUrl = supabase.storage
-            .from('dog_files')
-            .getPublicUrl(
-                "${dog!['dog_ala']}/photos/${heroPhoto['url']}");
-      });
-    }
-  }
-//
- 
-//    
+  // =========================
+  // LOAD DATA
+  // =========================
 
   Future<void> loadDog() async {
     setState(() => loading = true);
@@ -104,26 +61,30 @@ class _DogDetailsPageState extends State<DogDetailsPage> {
       return;
     }
 
-    // Load hero photo
-    final heroPhoto = await supabase
+    // HERO
+    final photos = await supabase
         .from('dog_photos')
-        .select('url')
-        .eq('dog_id', widget.dogId)
-        .eq('is_hero', true)
-        .maybeSingle();
+        .select('url, is_hero')
+        .eq('dog_id', widget.dogId);
 
-    if (heroPhoto != null && heroPhoto['url'] != null) {
-      heroUrl = supabase.storage
+    String? newHeroUrl;
+
+    if (photos.isNotEmpty) {
+      final hero = photos.firstWhere(
+        (p) => p['is_hero'] == true,
+        orElse: () => photos.first,
+      );
+
+      final fileName = hero['url'];
+
+      newHeroUrl = supabase.storage
           .from('dog_files')
-          .getPublicUrl(
-              "${dogResult['dog_ala']}/photos/${heroPhoto['url']}");
-    } else {
-      heroUrl = null;
+          .getPublicUrl("${dogResult['dog_ala']}/photos/$fileName");
     }
 
+    // PEOPLE
     Map<String, dynamic>? loadedBreeder;
     Map<String, dynamic>? loadedOwner;
-    Map<String, dynamic>? loadedGuardian;
     Map<String, dynamic>? loadedMother;
     Map<String, dynamic>? loadedFather;
 
@@ -143,86 +104,95 @@ class _DogDetailsPageState extends State<DogDetailsPage> {
           .maybeSingle();
     }
 
-    if (dogResult['guardian_person_id'] != null) {
-      loadedGuardian = await supabase
-          .from('people')
-          .select()
-          .eq('people_id', dogResult['guardian_person_id'])
-          .maybeSingle();
-    }
-
-    if (dogResult['mother_ala'] != null &&
-        dogResult['mother_ala'].toString().isNotEmpty) {
-      final motherList = await supabase
-          .from('dogs')
-          .select('id, dog_name, dog_ala')
+    // 🔥 PARENTS WITH HERO IMAGE
+    if (dogResult['mother_ala'] != null) {
+      final res = await supabase
+          .from('dogs_list_view')
+          .select('id, dog_name, dog_ala, status, hero_image_url')
           .eq('dog_ala', dogResult['mother_ala']);
 
-      if (motherList.isNotEmpty) {
-        loadedMother = motherList.first;
-      }
+      if (res.isNotEmpty) loadedMother = res.first;
     }
 
-    if (dogResult['father_ala'] != null &&
-        dogResult['father_ala'].toString().isNotEmpty) {
-      final fatherList = await supabase
-          .from('dogs')
-          .select('id, dog_name, dog_ala')
+    if (dogResult['father_ala'] != null) {
+      final res = await supabase
+          .from('dogs_list_view')
+          .select('id, dog_name, dog_ala, status, hero_image_url')
           .eq('dog_ala', dogResult['father_ala']);
 
-      if (fatherList.isNotEmpty) {
-        loadedFather = fatherList.first;
-      }
+      if (res.isNotEmpty) loadedFather = res.first;
     }
 
     setState(() {
       dog = dogResult;
       breeder = loadedBreeder;
       owner = loadedOwner;
-      guardian = loadedGuardian;
       mother = loadedMother;
       father = loadedFather;
+      heroUrl = newHeroUrl;
       loading = false;
     });
   }
 
-  Widget buildPersonRow({
-    required String label,
-    required IconData icon,
-    required Map<String, dynamic>? person,
-  }) {
-    if (person == null) return const SizedBox.shrink();
+  // =========================
+  // UI
+  // =========================
 
-    final displayName =
-        (person['business_name'] != null &&
-                person['business_name'].toString().isNotEmpty)
-            ? person['business_name']
-            : "${person['first_name_1st'] ?? ''} ${person['last_name_1st'] ?? ''}";
+  Widget buildParentCard(Map<String, dynamic>? parent, String label) {
+    if (parent == null) return const SizedBox();
 
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 8),
-      child: GestureDetector(
-        onTap: () {
-          Navigator.push(
-            context,
-            MaterialPageRoute(
-              builder: (_) =>
-                  PeopleDetailPage(personId: person['people_id']),
-            ),
-          );
-        },
-        child: Row(
+    final imageUrl = parent['hero_image_url'];
+
+    return GestureDetector(
+      onTap: () {
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (_) => DogDetailsPage(dogId: parent['id']),
+          ),
+        );
+      },
+      child: Container(
+        padding: const EdgeInsets.all(10),
+        decoration: BoxDecoration(
+          color: Colors.grey.shade100,
+          borderRadius: BorderRadius.circular(14),
+        ),
+        child: Column(
           children: [
-            Icon(icon, size: 18, color: Colors.grey),
-            const SizedBox(width: 6),
-            Expanded(
-              child: Text(
-                "$label: $displayName",
-                style: const TextStyle(
-                  color: Colors.teal,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
+            Text(label, style: const TextStyle(fontSize: 12)),
+
+            const SizedBox(height: 6),
+
+            // 🐶 IMAGE THUMBNAIL
+            ClipRRect(
+              borderRadius: BorderRadius.circular(10),
+              child: (imageUrl != null && imageUrl.toString().isNotEmpty)
+                  ? Image.network(
+                      imageUrl,
+                      height: 80,
+                      width: double.infinity,
+                      fit: BoxFit.cover,
+                      errorBuilder: (_, __, ___) => _placeholder(),
+                    )
+                  : _placeholder(),
+            ),
+
+            const SizedBox(height: 6),
+
+            Text(
+              parent['dog_name'] ?? '',
+              textAlign: TextAlign.center,
+            ),
+
+            Text(
+              parent['dog_ala'] ?? '',
+              style: const TextStyle(fontSize: 12),
+            ),
+
+            Text(
+              parent['status'] ?? '',
+              style: const TextStyle(fontSize: 11),
             ),
           ],
         ),
@@ -230,42 +200,87 @@ class _DogDetailsPageState extends State<DogDetailsPage> {
     );
   }
 
-  Widget buildParentRow({
-    required String label,
-    required Map<String, dynamic>? parent,
-  }) {
-    if (parent == null) return const SizedBox.shrink();
-
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 8),
-      child: GestureDetector(
-        onTap: () {
-          Navigator.push(
-            context,
-            MaterialPageRoute(
-              builder: (_) => DogDetailsPage(dogId: parent['id']),
-            ),
-        
-          );
-        },
-        child: Row(
-          children: [
-            const Icon(Icons.pets, size: 18, color: Colors.grey),
-            const SizedBox(width: 6),
-            Expanded(
-              child: Text(
-                "$label: ${parent['dog_name']} (${parent['dog_ala']})",
-                style: const TextStyle(
-                  color: Colors.teal,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-            ),
-          ],
-        ),
-      ),
+  Widget _placeholder() {
+    return Container(
+      height: 80,
+      color: Colors.grey.shade300,
+      child: const Icon(Icons.pets),
     );
   }
+
+  Widget buildParents() {
+    return Row(
+      children: [
+        Expanded(child: buildParentCard(mother, "Mother")),
+        const SizedBox(width: 10),
+        Expanded(child: buildParentCard(father, "Father")),
+      ],
+    );
+  }
+
+  Widget buildBasicInfo() {
+    final age = calculateDogAge(dog?['dob']);
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          dog?['dog_name'] ?? '',
+          style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
+        ),
+
+        Text("Status: ${dog?['status'] ?? ''}"),
+
+        if (age.isNotEmpty)
+          Text("Age: $age")
+        else
+          const Text("Age: Unknown"),
+      ],
+    );
+  }
+
+  Widget buildPeople() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        if (breeder != null)
+          GestureDetector(
+            onTap: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) =>
+                      PeopleDetailPage(personId: breeder!['people_id']),
+                ),
+              );
+            },
+            child: Text(
+              "Breeder: ${breeder!['first_name_1st']} ${breeder!['last_name_1st']}",
+            ),
+          ),
+        const SizedBox(height: 8),
+        if (owner != null)
+          GestureDetector(
+            onTap: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) =>
+                      PeopleDetailPage(personId: owner!['people_id']),
+                ),
+              );
+            },
+            child: Text(
+              "Owner: ${owner!['first_name_1st']} ${owner!['last_name_1st']} (${owner!['phone_1st']})",
+            ),
+          ),
+      ],
+    );
+  }
+
+  // =========================
+  // BUILD
+  // =========================
 
   @override
   Widget build(BuildContext context) {
@@ -275,117 +290,53 @@ class _DogDetailsPageState extends State<DogDetailsPage> {
       );
     }
 
-    return DefaultTabController(
-      length: 5,
-      child: Scaffold(
-        appBar: AppBar(
-          title: Text(dog!['dog_name'] ?? ''),
-          centerTitle: true,
+    final isPet = dog!['status'] == 'Pet';
+
+    return Scaffold(
+     appBar: AppBar(
+      title: Text(dog!['dog_name'] ?? ''),
+      centerTitle: true,
+      actions: [
+        IconButton(
+          icon: const Icon(Icons.edit),
+          onPressed: () async {
+            await Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (_) => DogEditPage(dog: dog!),
+              ),
+            );
+
+            loadDog();
+          },
         ),
-        body: Column(
+      ],
+    ),
+      body: SingleChildScrollView(
+        child: Column(
           children: [
-            Expanded(
-              child: SingleChildScrollView(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-
-                   // HERO IMAGE (smaller, centered, maintains aspect ratio)
             if (heroUrl != null)
-              Padding(
-                padding: const EdgeInsets.only(top: 16),
-                child: Center(
-                  child: ConstrainedBox(
-                    constraints: const BoxConstraints(
-                      maxHeight: 140, // ~50% of previous 240
-                    ),
-                    child: ClipRRect(
-                      borderRadius: BorderRadius.circular(12),
-                      child: Image.network(
-                        heroUrl!,
-                        fit: BoxFit.contain, // maintain aspect ratio
-                      ),
-                    ),
-                  ),
-                ),
+              Image.network(
+                heroUrl!,
+                height: 300,
+                width: double.infinity,
+                fit: BoxFit.contain,
               ),
-
-                    Padding(
-                      padding: const EdgeInsets.all(20),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text("ALA: ${dog?['dog_ala'] ?? ''}"),
-                          const SizedBox(height: 8),
-                          Text("Microchip: ${dog?['microchip'] ?? ''}"),
-                            const SizedBox(height: 10),
-
-                            buildSpayChip(dog?['spay_due']),
-
-                            const SizedBox(height: 20),
-
-                            if (mother != null)
-                              buildParentRow(label: "Mother", parent: mother),
-
-                          if (father != null)
-                            buildParentRow(label: "Father", parent: father),
-
-                          const SizedBox(height: 20),
-
-                          buildPersonRow(
-                            label: "Breeder",
-                            icon: Icons.emoji_events,
-                            person: breeder,
-                          ),
-                          buildPersonRow(
-                            label: "Owner",
-                            icon: Icons.person,
-                            person: owner,
-                          ),
-                          buildPersonRow(
-                            label: "Guardian",
-                            icon: Icons.shield,
-                            person: guardian,
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-
-            const TabBar(
-              labelColor: Colors.teal,
-              unselectedLabelColor: Colors.grey,
-              indicatorColor: Colors.teal,
-              tabs: [
-                Tab(text: "Photos"),
-                Tab(text: "Files"),
-                Tab(text: "Notes"),
-                Tab(text: 'DNA'),
-                Tab(text: "Breeding"),
-              ],
-            ),
-
-            Expanded(
-              child: TabBarView(
+//
+            Padding(
+              padding: const EdgeInsets.all(16),
+              child: Column(
                 children: [
-                  DogPhotosTab(
-                    dogId: dog!['id'],
-                    dogAla: dog!['dog_ala'] ?? '',
-                    onHeroChanged: () async {
-                      await refreshHeroOnly();
-                    },
-                  ),
-                  DogFilesTab(
-                    dogId: dog!['id'],
-                    dogAla: dog!['dog_ala'],
-                  ),
-                  DogNotesTab(dogId: dog!['id']),
-                  DnaTab(dogId: dog!['id']),
-                  DogBreedingTab(dogId: dog!['id']),
-                  
+                  buildBasicInfo(),
+                  const SizedBox(height: 20),
+                  buildParents(),
+                  const SizedBox(height: 20),
+                  buildPeople(),
+
+                  if (!isPet) ...[
+                    const SizedBox(height: 20),
+                    const Text("Breeding info coming soon"),
+                  ],
                 ],
               ),
             ),

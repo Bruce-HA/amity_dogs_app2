@@ -16,7 +16,7 @@ class _SpayStatusCardState extends State<SpayStatusCard> {
   final supabase = Supabase.instance.client;
 
   bool get canHaveSpayDue {
-    return widget.dog['dog_type'] == 'Pet' &&
+    return widget.dog['status'] == 'Pet' &&
         (widget.dog['desexed'] == 'No' || widget.dog['desexed'] == 'Unknown');
   }
 

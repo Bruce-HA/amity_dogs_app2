@@ -22,3 +22,15 @@ macos/Pods/
 
 # System
 .DS_Store
+
+.build/
+.dart_tool/
+.packages
+.pub/
+build/
+ios/Pods/
+ios/.symlinks/
+android/.gradle/
+android/app/build/
+*.log
+*.lock

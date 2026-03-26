@@ -2,6 +2,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../pages/dog_details_page.dart';
+import 'dog_create_page.dart';
 
 class DogsPage extends StatefulWidget {
   const DogsPage({super.key});
@@ -37,7 +38,7 @@ class _DogsPageState extends State<DogsPage> {
     'pending',
     'Pet',
     'Active',
-    'Our Guardian',
+    'Guardian',
     'Retired',
     'Deceased',
     'Forsale',
@@ -140,6 +141,7 @@ class _DogsPageState extends State<DogsPage> {
 
       if (search.isNotEmpty) {
         final filter =
+            'dog_name.ilike.%$search%,'
             'dog_ala.ilike.%$search%,'
             'microchip.ilike.%$search%';
         query = query.or(filter);
@@ -463,6 +465,21 @@ class _DogsPageState extends State<DogsPage> {
           ),
         ],
       ),
-    );
+      //---
+       // 👇 ADD THIS HERE
+            floatingActionButton: FloatingActionButton(
+              child: const Icon(Icons.add),
+              onPressed: () async {
+                await Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => const DogCreatePage(),
+                  ),
+                );
+
+                _fetchDogs(reset: true); // refresh list
+              },
+            ),
+          );
   }
 }
