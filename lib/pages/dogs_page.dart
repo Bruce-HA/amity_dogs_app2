@@ -295,7 +295,8 @@ class _DogsPageState extends State<DogsPage> {
               builder: (_) => DogDetailsPage(dogId: dog['id']),
             ),
           );
-          _fetchDogs(reset: true);
+
+_fetchDogs(reset: true); // ✅ this is the correct refresh
         },
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.start,
