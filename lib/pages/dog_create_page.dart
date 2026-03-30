@@ -11,40 +11,25 @@ class DogCreatePage extends StatefulWidget {
 class _DogCreatePageState extends State<DogCreatePage> {
   final supabase = Supabase.instance.client;
 
-  final TextEditingController nameController = TextEditingController();
-  final TextEditingController alaController = TextEditingController();
-  final TextEditingController microchipController = TextEditingController();
-  final TextEditingController dobController = TextEditingController();
-  final TextEditingController spayDueController = TextEditingController();
+  final dogNameController = TextEditingController();
+  final alaController = TextEditingController();
+  final microchipController = TextEditingController();
 
-  String status = 'Unknown';
-  String desexed = 'Unknown';
+  final breederController = TextEditingController();
+  final ownerController = TextEditingController();
 
   List<Map<String, dynamic>> people = [];
+  List<Map<String, dynamic>> filteredBreeders = [];
+  List<Map<String, dynamic>> filteredOwners = [];
 
   String? selectedBreederId;
   String? selectedOwnerId;
 
-  final List<String> statuses = [
-    'pending',
-    'Pet',
-    'Active',
-    'Guardian',
-    'Retired',
-    'Deceased',
-    'Forsale',
-    'Sold',
-    'Unknown',
-  ];
+  bool showBreederList = false;
+  bool showOwnerList = false;
 
-  final List<String> desexedOptions = [
-    'Yes',
-    'No',
-    'Pending',
-    'Unknown',
-  ];
-
-  bool isSaving = false;
+  DateTime? dob;
+  DateTime? spayDate;
 
   @override
   void initState() {
@@ -53,88 +38,160 @@ class _DogCreatePageState extends State<DogCreatePage> {
   }
 
   Future<void> loadPeople() async {
-    final res = await supabase
-        .from('people')
-        .select('people_id, first_name_1st, last_name_1st, business_name')
-        .order('last_name_1st');
-
+    final res = await supabase.from('people').select();
     setState(() {
       people = List<Map<String, dynamic>>.from(res);
     });
   }
 
   String personLabel(Map<String, dynamic> p) {
-    final business = p['business_name'];
-    if (business != null && business.toString().isNotEmpty) {
-      return business;
-    }
-    return "${p['first_name_1st'] ?? ''} ${p['last_name_1st'] ?? ''}";
+    final first = p['first_name_1st'] ?? '';
+    final last = p['last_name_1st'] ?? '';
+    final business = p['business_name'] ?? '';
+
+    if (business.toString().isNotEmpty) return business;
+    return "$first $last";
   }
 
-  Future<void> pickDate(TextEditingController controller) async {
-    final picked = await showDatePicker(
-      context: context,
-      initialDate: DateTime.now(),
-      firstDate: DateTime(2000),
-      lastDate: DateTime(2100),
-    );
+  void filterPeople(String value, bool isBreeder) {
+    final filtered = people.where((p) {
+      final name = personLabel(p).toLowerCase();
+      return name.contains(value.toLowerCase());
+    }).toList();
 
-    if (picked != null) {
-      controller.text =
-          picked.toIso8601String().split('T').first;
-    }
+    setState(() {
+      if (isBreeder) {
+        filteredBreeders = filtered;
+        showBreederList = true;
+      } else {
+        filteredOwners = filtered;
+        showOwnerList = true;
+      }
+    });
+  }
+
+  Future<void> showCreatePersonDialog() async {
+    final controller = TextEditingController();
+
+    showDialog(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: const Text('New Person'),
+        content: TextField(
+          controller: controller,
+          decoration: const InputDecoration(labelText: 'Name or Business'),
+        ),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('Cancel')),
+          ElevatedButton(
+            onPressed: () async {
+              final name = controller.text.trim();
+              if (name.isEmpty) return;
+
+              final res = await supabase.from('people').insert({
+                'business_name': name,
+              }).select().single();
+
+              setState(() {
+                people.add(res);
+              });
+
+              Navigator.pop(context);
+            },
+            child: const Text('Save'),
+          )
+        ],
+      ),
+    );
+  }
+
+  Widget _buildPeopleDropdown({
+    required List<Map<String, dynamic>> list,
+    required Function(Map<String, dynamic>) onTap,
+  }) {
+    return Container(
+      margin: const EdgeInsets.only(top: 6),
+      constraints: const BoxConstraints(maxHeight: 200),
+      decoration: BoxDecoration(
+        border: Border.all(color: Colors.black12),
+        borderRadius: BorderRadius.circular(12),
+        color: Colors.white,
+      ),
+      child: ListView(
+        shrinkWrap: true,
+        children: [
+          ...list.map((p) => ListTile(
+                title: Text(personLabel(p)),
+                onTap: () => onTap(p),
+              )),
+          ListTile(
+            leading: const Icon(Icons.add),
+            title: const Text('Add new person'),
+            onTap: showCreatePersonDialog,
+          ),
+        ],
+      ),
+    );
   }
 
   Future<void> createDog() async {
-    if (nameController.text.trim().isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Dog name is required')),
-      );
-      return;
-    }
+    await supabase.from('dogs').insert({
+      'dog_name': dogNameController.text,
+      'dog_ala': alaController.text,
+      'microchip': microchipController.text,
+      'breeder_person_id': selectedBreederId,
+      'owner_person_id': selectedOwnerId,
+      'dob': dob?.toIso8601String(),
+      'spay_due': spayDate?.toIso8601String(),
+    });
 
-    setState(() => isSaving = true);
-
-    try {
-      await supabase.from('dogs').insert({
-        'dog_name': nameController.text.trim(),
-        'dog_ala': alaController.text.trim(),
-        'microchip': microchipController.text.trim(),
-        'dob': dobController.text.trim().isEmpty
-            ? null
-            : dobController.text.trim(),
-        'status': status,
-        'desexed': desexed,
-        'spay_due': spayDueController.text.isEmpty
-            ? null
-            : spayDueController.text,
-        'breeder_person_id': selectedBreederId == null
-            ? null
-            : int.parse(selectedBreederId!),
-
-        'owner_person_id': selectedOwnerId == null
-            ? null
-            : int.parse(selectedOwnerId!),
-      });
-
-      Navigator.pop(context);
-    } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Error creating dog: $e')),
-      );
-    }
-
-    setState(() => isSaving = false);
+    if (mounted) Navigator.pop(context);
   }
 
-  @override
-  void dispose() {
-    nameController.dispose();
-    alaController.dispose();
-    microchipController.dispose();
-    dobController.dispose();
-    spayDueController.dispose();
-    super.dispose();
+  Widget _input(String label, TextEditingController controller) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 16),
+      child: TextField(
+        controller: controller,
+        decoration: InputDecoration(
+          labelText: label,
+          border: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(12),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _dateField(String label, DateTime? value, Function(DateTime) onPick) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 16),
+      child: GestureDetector(
+        onTap: () async {
+          final picked = await showDatePicker(
+            context: context,
+            initialDate: DateTime.now(),
+            firstDate: DateTime(2000),
+            lastDate: DateTime(2100),
+          );
+          if (picked != null) onPick(picked);
+        },
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 16),
+          decoration: BoxDecoration(
+            border: Border.all(color: Colors.black12),
+            borderRadius: BorderRadius.circular(12),
+          ),
+          child: Text(
+            value == null
+                ? label
+                : "$label: ${value.toLocal().toString().split(' ')[0]}",
+          ),
+        ),
+      ),
+    );
   }
 
   @override
@@ -145,101 +202,90 @@ class _DogCreatePageState extends State<DogCreatePage> {
         actions: [
           IconButton(
             icon: const Icon(Icons.save),
-            onPressed: isSaving ? null : createDog,
-          ),
+            onPressed: createDog,
+          )
         ],
       ),
-      body: Padding(
+      body: ListView(
         padding: const EdgeInsets.all(16),
-        child: ListView(
-          children: [
-            TextField(
-              controller: nameController,
-              decoration: const InputDecoration(labelText: 'Dog Name'),
+        children: [
+          _input('Dog Name', dogNameController),
+          _input('ALA', alaController),
+          _input('Microchip', microchipController),
+
+          _dateField('DOB', dob, (d) => setState(() => dob = d)),
+
+          // 🔍 BREEDER
+          TextField(
+            controller: breederController,
+            decoration: InputDecoration(
+              labelText: 'Breeder',
+              prefixIcon: const Icon(Icons.search),
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
+            ),
+            onChanged: (v) => filterPeople(v, true),
+          ),
+
+          if (showBreederList)
+            _buildPeopleDropdown(
+              list: filteredBreeders,
+              onTap: (p) {
+                setState(() {
+                  breederController.text = personLabel(p);
+                  selectedBreederId = p['people_id'].toString();
+                  showBreederList = false;
+                });
+              },
             ),
 
-            TextField(
-              controller: alaController,
-              decoration: const InputDecoration(labelText: 'ALA'),
+          const SizedBox(height: 16),
+
+          // 🔍 OWNER
+          TextField(
+            controller: ownerController,
+            decoration: InputDecoration(
+              labelText: 'Owner',
+              prefixIcon: const Icon(Icons.search),
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
+            ),
+            onChanged: (v) => filterPeople(v, false),
+          ),
+
+          if (showOwnerList)
+            _buildPeopleDropdown(
+              list: filteredOwners,
+              onTap: (p) {
+                setState(() {
+                  ownerController.text = personLabel(p);
+                  selectedOwnerId = p['people_id'].toString();
+                  showOwnerList = false;
+                });
+              },
             ),
 
-            TextField(
-              controller: microchipController,
-              decoration: const InputDecoration(labelText: 'Microchip'),
+          const SizedBox(height: 16),
+
+          _dateField('Spay Due Date', spayDate,
+              (d) => setState(() => spayDate = d)),
+
+          const SizedBox(height: 24),
+
+          ElevatedButton.icon(
+            onPressed: createDog,
+            icon: const Icon(Icons.save),
+            label: const Text('Save Dog'),
+            style: ElevatedButton.styleFrom(
+              padding: const EdgeInsets.symmetric(vertical: 16),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
             ),
-
-            TextField(
-              controller: dobController,
-              readOnly: true,
-              decoration: const InputDecoration(labelText: 'DOB'),
-              onTap: () => pickDate(dobController),
-            ),
-
-            const SizedBox(height: 20),
-
-            DropdownButtonFormField<String>(
-              value: status,
-              items: statuses
-                  .map((s) =>
-                      DropdownMenuItem(value: s, child: Text(s)))
-                  .toList(),
-              onChanged: (v) => setState(() => status = v!),
-              decoration: const InputDecoration(labelText: 'Status'),
-            ),
-
-            DropdownButtonFormField<String>(
-              value: desexed,
-              items: desexedOptions
-                  .map((d) =>
-                      DropdownMenuItem(value: d, child: Text(d)))
-                  .toList(),
-              onChanged: (v) => setState(() => desexed = v!),
-              decoration: const InputDecoration(labelText: 'Desexed'),
-            ),
-
-            TextField(
-              controller: spayDueController,
-              readOnly: true,
-              decoration:
-                  const InputDecoration(labelText: 'Spay Due Date'),
-              onTap: () => pickDate(spayDueController),
-            ),
-
-            const SizedBox(height: 20),
-
-            DropdownButtonFormField<String>(
-              value: selectedBreederId,
-              hint: const Text("Select Breeder"),
-              items: people
-                  .map((p) => DropdownMenuItem(
-                        value: p['people_id'].toString(),
-                        child: Text(personLabel(p)),
-                      ))
-                  .toList(),
-              onChanged: (v) => setState(() => selectedBreederId = v),
-            ),
-
-            DropdownButtonFormField<String>(
-              value: selectedOwnerId,
-              hint: const Text("Select Owner"),
-              items: people
-                  .map((p) => DropdownMenuItem(
-                        value: p['people_id'].toString(),
-                        child: Text(personLabel(p)),
-                      ))
-                  .toList(),
-              onChanged: (v) => setState(() => selectedOwnerId = v),
-            ),
-
-            const SizedBox(height: 30),
-
-            ElevatedButton.icon(
-              onPressed: isSaving ? null : createDog,
-              icon: const Icon(Icons.save),
-              label: const Text('Save Dog'),
-            ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }

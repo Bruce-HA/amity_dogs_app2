@@ -6,10 +6,10 @@ import '../tabs/dog_photos_tab.dart';
 import '../tabs/dog_files_tab.dart';
 import '../tabs/dog_notes_tab.dart';
 import '../tabs/dna_tab.dart';
-import 'people_detail_page.dart';
 import 'dog_edit_page.dart';
+import 'people_detail_page.dart';
+import 'dog_details_page.dart';
 import 'widgets/dog_card.dart';
-import '../services/breeding_plan_service.dart';
 
 class DogDetailsPage extends StatefulWidget {
   final String dogId;
@@ -25,7 +25,6 @@ class DogDetailsPage extends StatefulWidget {
 
 class _DogDetailsPageState extends State<DogDetailsPage> {
   final supabase = Supabase.instance.client;
-  final _service = BreedingPlanService();
 
   Map<String, dynamic>? dog;
   Map<String, dynamic>? breeder;
@@ -34,17 +33,14 @@ class _DogDetailsPageState extends State<DogDetailsPage> {
   Map<String, dynamic>? father;
 
   String? heroUrl;
-  bool loading = true;
 
   int selectedTab = 0;
   List<String> tabs = [];
 
-  int maleCount = 0;
-  int femaleCount = 0;
-
   int litterCount = 0;
   int puppyCount = 0;
-  bool isLoadingLitters = true;
+  int maleCount = 0;
+  int femaleCount = 0;
 
   @override
   void initState() {
@@ -53,21 +49,13 @@ class _DogDetailsPageState extends State<DogDetailsPage> {
   }
 
   Future<void> loadDog() async {
-    setState(() => loading = true);
-
     final dogResult = await supabase
         .from('dogs')
         .select()
         .eq('id', widget.dogId)
         .maybeSingle();
 
-    if (dogResult == null) {
-      setState(() {
-        dog = null;
-        loading = false;
-      });
-      return;
-    }
+    if (dogResult == null) return;
 
     final photos = await supabase
         .from('dog_photos')
@@ -81,25 +69,12 @@ class _DogDetailsPageState extends State<DogDetailsPage> {
         (p) => p['is_hero'] == true,
         orElse: () => photos.first,
       );
-
-      final rawUrl = hero['url'];
-
-      if (rawUrl != null && rawUrl.toString().startsWith('http')) {
-        newHeroUrl = rawUrl;
-      } else {
-        newHeroUrl = supabase.storage
-            .from('dog_files')
-            .getPublicUrl("${dogResult['dog_ala']}/photos/$rawUrl");
-      }
+      newHeroUrl = hero['url'];
     }
 
-    Map<String, dynamic>? loadedBreeder;
-    Map<String, dynamic>? loadedOwner;
-    Map<String, dynamic>? loadedMother;
-    Map<String, dynamic>? loadedFather;
-
+    // 🔥 LOAD PEOPLE
     if (dogResult['breeder_person_id'] != null) {
-      loadedBreeder = await supabase
+      breeder = await supabase
           .from('people')
           .select()
           .eq('people_id', dogResult['breeder_person_id'])
@@ -107,30 +82,32 @@ class _DogDetailsPageState extends State<DogDetailsPage> {
     }
 
     if (dogResult['owner_person_id'] != null) {
-      loadedOwner = await supabase
+      owner = await supabase
           .from('people')
           .select()
           .eq('people_id', dogResult['owner_person_id'])
           .maybeSingle();
     }
 
+    // 🔥 LOAD PARENTS
     if (dogResult['mother_ala'] != null) {
       final res = await supabase
           .from('dogs_list_view')
-          .select('id, dog_name, dog_ala, status, hero_image_url, dob')
+          .select()
           .eq('dog_ala', dogResult['mother_ala']);
-      if (res.isNotEmpty) loadedMother = res.first;
+      if (res.isNotEmpty) mother = res.first;
     }
 
     if (dogResult['father_ala'] != null) {
       final res = await supabase
           .from('dogs_list_view')
-          .select('id, dog_name, dog_ala, status, hero_image_url, dob')
+          .select()
           .eq('dog_ala', dogResult['father_ala']);
-      if (res.isNotEmpty) loadedFather = res.first;
+      if (res.isNotEmpty) father = res.first;
     }
 
-    final isPet = dogResult['status'] == 'Pet';
+    final isPet =
+        (dogResult['status'] ?? '').toString().toLowerCase() == 'pet';
 
     tabs = isPet
         ? ['Overview', 'Photos', 'Notes', 'Files']
@@ -138,12 +115,7 @@ class _DogDetailsPageState extends State<DogDetailsPage> {
 
     setState(() {
       dog = dogResult;
-      breeder = loadedBreeder;
-      owner = loadedOwner;
-      mother = loadedMother;
-      father = loadedFather;
       heroUrl = newHeroUrl;
-      loading = false;
     });
 
     await loadLitters();
@@ -186,17 +158,52 @@ class _DogDetailsPageState extends State<DogDetailsPage> {
       maleCount = m;
       femaleCount = f;
       puppyCount = m + f;
-      isLoadingLitters = false;
     });
+  }
+
+  // 🔥 HERO IMAGE FIX
+  Widget _buildHeroImage() {
+    final url = heroUrl;
+
+    if (url == null || url.isEmpty) return _placeholderHero();
+
+    String finalUrl;
+
+    if (url.startsWith('http')) {
+      finalUrl = url;
+    } else {
+      final dogAla = dog?['dog_ala'];
+      finalUrl = supabase.storage
+          .from('dog_files')
+          .getPublicUrl('$dogAla/photos/$url');
+    }
+
+    return Image.network(
+      finalUrl,
+      height: 220,
+      width: double.infinity,
+      fit: BoxFit.cover,
+      errorBuilder: (_, __, ___) => _placeholderHero(),
+    );
+  }
+
+  Widget _placeholderHero() {
+    return Container(
+      height: 220,
+      color: Colors.grey.shade300,
+      child: const Icon(Icons.pets, size: 60),
+    );
   }
 
   Widget buildOverview() {
     String age = '';
     final dobRaw = dog?['dob'];
-
     if (dobRaw != null) {
       age = calculateDogAge(dobRaw.toString());
     }
+
+    final isPet =
+        (dog?['status'] ?? '').toString().toLowerCase() == 'pet';
 
     return SingleChildScrollView(
       padding: const EdgeInsets.all(16),
@@ -207,37 +214,82 @@ class _DogDetailsPageState extends State<DogDetailsPage> {
               style:
                   const TextStyle(fontSize: 22, fontWeight: FontWeight.bold)),
           Text(dog?['dog_ala'] ?? ''),
-
           Text("Status: ${dog?['status'] ?? ''}"),
           Text(age.isNotEmpty ? "Age: $age" : "Age: Unknown"),
           const SizedBox(height: 20),
 
-          if (dog?['status'] != 'Pet') ...[
-            const Text(
-              'Litters',
-              style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
-            ),
-            const SizedBox(height: 8),
-            const Divider(),
-            const SizedBox(height: 8),
-
-            if (isLoadingLitters)
-              const Text('Loading...')
-            else
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text('Litters: $litterCount'),
-                  Text('Puppies: $puppyCount'),
-                  const SizedBox(height: 4),
-                  Text('🔵♂ $maleCount'),
-                  Text('🩷♀ $femaleCount'),
-                                  ],
+          // 🔥 BREEDER
+          // 🔥 OWNER
+          Row(
+            children: [
+              // 🐾 BREEDER
+              Expanded(
+                child: breeder != null
+                    ? _PersonCard(
+                        title: 'Breeder',
+                        primary: breeder!['business_name']?.toString().isNotEmpty == true
+                            ? breeder!['business_name']
+                            : "${breeder!['first_name_1st']} ${breeder!['last_name_1st']}",
+                        secondary:
+                            "${breeder!['first_name_1st']} ${breeder!['last_name_1st']}",
+                        icon: Icons.home_work,
+                        onTap: () {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (_) => PeopleDetailPage(
+                                personId: breeder!['people_id'],
+                              ),
+                            ),
+                          );
+                        },
+                      )
+                    : const SizedBox(),
               ),
 
+              const SizedBox(width: 12),
+
+              // 👤 OWNER (NOW MATCHES BREEDER LOGIC)
+              Expanded(
+                child: owner != null
+                    ? _PersonCard(
+                        title: 'Owner',
+                        primary: owner!['business_name']?.toString().isNotEmpty == true
+                            ? owner!['business_name']
+                            : "${owner!['first_name_1st']} ${owner!['last_name_1st']}",
+                        secondary:
+                            "${owner!['first_name_1st']} ${owner!['last_name_1st']}",
+                        icon: Icons.person,
+                        onTap: () {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (_) => PeopleDetailPage(
+                                personId: owner!['people_id'],
+                              ),
+                            ),
+                          );
+                        },
+                      )
+                    : const SizedBox(),
+              ),
+            ],
+          ),
+
+          const SizedBox(height: 20),
+
+          // 🔥 LITTERS
+          if (!isPet) ...[
+            const Text('Litters',
+                style: TextStyle(fontWeight: FontWeight.bold)),
+            Text('Litters: $litterCount'),
+            Text('Puppies: $puppyCount'),
+            Text('🔵♂ $maleCount'),
+            Text('🩷♀ $femaleCount'),
             const SizedBox(height: 20),
           ],
 
+          // 🔥 PARENTS
           SizedBox(
             height: 180,
             child: Row(
@@ -278,46 +330,16 @@ class _DogDetailsPageState extends State<DogDetailsPage> {
               ],
             ),
           ),
-
-          const SizedBox(height: 20),
-
-          if (breeder != null)
-            GestureDetector(
-              onTap: () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (_) => PeopleDetailPage(
-                      personId: breeder!['people_id'],
-                    ),
-                  ),
-                );
-              },
-              child: Text(
-                  "Breeder: ${breeder!['first_name_1st']} ${breeder!['last_name_1st']}"),
-            ),
-
-          if (owner != null)
-            GestureDetector(
-              onTap: () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (_) => PeopleDetailPage(
-                      personId: owner!['people_id'],
-                    ),
-                  ),
-                );
-              },
-              child: Text(
-                  "Owner: ${owner!['first_name_1st']} ${owner!['last_name_1st']}"),
-            ),
         ],
       ),
     );
   }
 
   Widget buildTabContent() {
+    if (tabs.isEmpty || selectedTab >= tabs.length) {
+      return const SizedBox();
+    }
+
     final tab = tabs[selectedTab];
 
     switch (tab) {
@@ -327,7 +349,9 @@ class _DogDetailsPageState extends State<DogDetailsPage> {
         return DogPhotosTab(
           dogId: widget.dogId,
           dogAla: dog!['dog_ala'],
-          onHeroChanged: loadDog,
+          onHeroChanged: () async {
+            await loadDog();
+          },
         );
       case 'Breeding':
         return DogBreedingTab(dogId: widget.dogId);
@@ -351,9 +375,7 @@ class _DogDetailsPageState extends State<DogDetailsPage> {
         final isSelected = selectedTab == index;
 
         return GestureDetector(
-          onTap: () {
-            setState(() => selectedTab = index);
-          },
+          onTap: () => setState(() => selectedTab = index),
           child: Container(
             width: MediaQuery.of(context).size.width / 3,
             padding: const EdgeInsets.symmetric(vertical: 12),
@@ -376,7 +398,7 @@ class _DogDetailsPageState extends State<DogDetailsPage> {
 
   @override
   Widget build(BuildContext context) {
-    if (loading || dog == null) {
+    if (dog == null) {
       return const Scaffold(
         body: Center(child: CircularProgressIndicator()),
       );
@@ -387,7 +409,7 @@ class _DogDetailsPageState extends State<DogDetailsPage> {
         title: Text(dog!['dog_name'] ?? ''),
         actions: [
           IconButton(
-            icon: const Icon(Icons.edit),
+            icon: const Icon(Icons.edit, size: 20),
             onPressed: () async {
               await Navigator.push(
                 context,
@@ -395,19 +417,115 @@ class _DogDetailsPageState extends State<DogDetailsPage> {
                   builder: (_) => DogEditPage(dog: dog!),
                 ),
               );
-              loadDog();
+
+              await loadDog();
             },
           ),
         ],
       ),
       body: Column(
         children: [
-          if (heroUrl != null)
-            Image.network(heroUrl!,
-                height: 220, width: double.infinity, fit: BoxFit.cover),
+          _buildHeroImage(),
           buildTabs(),
           Expanded(child: buildTabContent()),
         ],
+      ),
+    );
+  }
+}
+class _PersonCard extends StatelessWidget {
+  final String title;
+  final String primary;
+  final String secondary;
+  final IconData icon;
+  final VoidCallback onTap;
+
+  const _PersonCard({
+    required this.title,
+    required this.primary,
+    required this.secondary,
+    required this.icon,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(16),
+      child: Container(
+        padding: const EdgeInsets.all(14),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: Colors.grey.shade200),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.03),
+              blurRadius: 10,
+              offset: const Offset(0, 4),
+            ),
+          ],
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              title,
+              style: TextStyle(
+                fontSize: 12,
+                color: Colors.grey.shade600,
+              ),
+            ),
+
+            const SizedBox(height: 8),
+
+            Row(
+              children: [
+                CircleAvatar(
+                  radius: 14,
+                  backgroundColor: Theme.of(context)
+                      .colorScheme
+                      .primary
+                      .withOpacity(0.1),
+                  child: Icon(
+                    icon,
+                    size: 16,
+                    color: Theme.of(context).colorScheme.primary,
+                  ),
+                ),
+
+                const SizedBox(width: 8),
+
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        primary,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                      if (secondary.isNotEmpty)
+                        Text(
+                          secondary,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: Colors.grey.shade600,
+                          ),
+                        ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
       ),
     );
   }

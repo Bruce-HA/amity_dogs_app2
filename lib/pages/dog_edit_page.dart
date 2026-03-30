@@ -1,10 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'widgets/person_picker.dart';
 
 class DogEditPage extends StatefulWidget {
   final Map<String, dynamic> dog;
 
-  const DogEditPage({super.key, required this.dog});
+  DogEditPage({super.key, required this.dog});
 
   @override
   State<DogEditPage> createState() => _DogEditPageState();
@@ -21,9 +22,11 @@ class _DogEditPageState extends State<DogEditPage> {
 
   String? status;
   String? desexed;
+  Map<String, dynamic>? breeder;
+  Map<String, dynamic>? owner;
 
   final List<String> statuses = [
-    'pending',
+    'Pending',
     'Pet',
     'Active',
     'Guardian',
@@ -59,6 +62,13 @@ class _DogEditPageState extends State<DogEditPage> {
 
     status = widget.dog['status'];
     desexed = widget.dog['desexed'] ?? 'Unknown';
+
+     // Existing dog data
+    final dogData = widget.dog;
+
+    // 🔥 Initialize breeder & owner
+    breeder = dogData['breeder'];
+    owner = dogData['owner'];
   }
 
   Future<void> save() async {
@@ -72,6 +82,9 @@ class _DogEditPageState extends State<DogEditPage> {
       'spay_due': spayDueController.text.isEmpty
           ? null
           : spayDueController.text,
+      // 🔥 ADD THESE
+    'breeder_person_id': breeder != null ? breeder!['people_id'] : null,
+    'owner_person_id': owner != null ? owner!['people_id'] : null,
     }).eq('id', widget.dog['id']);
 
     Navigator.pop(context);
@@ -189,7 +202,28 @@ class _DogEditPageState extends State<DogEditPage> {
                   labelText: "Spay Due Date"),
               onTap: () => pickDate(spayDueController),
             ),
+///
+            const SizedBox(height: 16),
 
+            PersonPicker(
+              label: 'Breeder',
+              useBusinessName: true, // 🔥 THIS enables business_name
+              selectedPerson: breeder,
+              onSelected: (person) {
+                setState(() => breeder = person);
+              },
+            ),
+
+            const SizedBox(height: 12),
+
+            PersonPicker(
+              label: 'Owner',
+              selectedPerson: owner,
+              onSelected: (person) {
+                setState(() => owner = person);
+              },
+            ),
+///
             const SizedBox(height: 30),
 
             ElevatedButton.icon(

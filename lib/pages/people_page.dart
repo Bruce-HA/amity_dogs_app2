@@ -88,12 +88,11 @@ class _PeoplePageState extends State<PeoplePage> {
 
       if (search.isNotEmpty) {
         final filter =
-            'last_name_1st.ilike.%$search%,'
-            'business_name.ilike.%$search%,'
-            'email_1st.ilike.%$search%,'
-            'phone_1st.ilike.%$search%,'
-            'microchips.ilike.%$search%,'
-            'dog_names.ilike.%$search%';
+          'last_name_1st.ilike.%$search%,'
+          'first_name_1st.ilike.%$search%,'
+          'business_name.ilike.%$search%,'
+          'email_1st.ilike.%$search%,'
+          'phone_1st.ilike.%$search%';
 
         query = query.or(filter);
       }
@@ -186,77 +185,80 @@ class _PeoplePageState extends State<PeoplePage> {
         label: Text(label),
         selected: selected,
         onSelected: onSelected,
-        selectedColor: Colors.teal.withOpacity(.2),
-        checkmarkColor: Colors.teal,
+        selectedColor:
+            Theme.of(context).colorScheme.primary.withOpacity(.15),
+        checkmarkColor: Theme.of(context).colorScheme.primary,
       ),
     );
   }
 
   Widget _buildPersonTile(Map<String, dynamic> person) {
-    final businessName = person['business_name'];
-    final firstName = person['first_name_1st'] ?? '';
-    final lastName = person['last_name_1st'] ?? '';
+    final business = person['business_name'];
+    final name =
+        "${person['first_name_1st'] ?? ''} ${person['last_name_1st'] ?? ''}";
 
-    return ListTile(
-      contentPadding:
-          const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-      title: businessName != null &&
-              businessName.toString().isNotEmpty
-          ? Text(
-              businessName,
-              style: const TextStyle(
-                fontWeight: FontWeight.bold,
-                fontSize: 16,
-              ),
-            )
-          : null,
-      subtitle: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text('$firstName $lastName'),
-          const SizedBox(height: 6),
-          Wrap(
-            spacing: 6,
-            runSpacing: 4,
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(16),
+        onTap: () {
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (_) =>
+                  PeopleDetailPage(personId: person['people_id']),
+            ),
+          );
+        },
+        child: Container(
+          padding: const EdgeInsets.all(14),
+         decoration: BoxDecoration(
+          color: Theme.of(context).cardColor,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(
+            color: Theme.of(context).dividerColor,
+          ),
+        ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              if (person['is_breeder'] == true)
-                _miniRoleChip("Breeder", Colors.purple),
+              if (business != null && business.toString().isNotEmpty)
+                Text(
+                  business,
+                  style: const TextStyle(
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
 
-              if (person['is_breeder'] == false &&
-                  person['has_bred_dogs'] == true)
-                _miniAutoChip("Breeder (Auto)", Colors.purple),
+              Text(
+                name,
+                style: TextStyle(color: Colors.grey.shade700),
+              ),
 
-              if (person['is_owner'] == true)
-                _miniRoleChip("Owner", Colors.blue),
+              const SizedBox(height: 8),
 
-              if (person['is_owner'] == false &&
-                  person['has_owned_dogs'] == true)
-                _miniAutoChip("Owner (Auto)", Colors.blue),
-
-              if (person['is_guardian'] == true)
-                _miniRoleChip("Guardian", Colors.teal),
-
-              if (person['is_supplier'] == true)
-                _miniRoleChip("Supplier", Colors.orange),
-
-              if (person['is_buyer'] == true)
-                _miniRoleChip("Buyer", Colors.green),
-
-              if (person['is_prospect'] == true)
-                _miniRoleChip("Prospect", Colors.grey),
+              Wrap(
+                spacing: 6,
+                runSpacing: 4,
+                children: [
+                  if (person['is_breeder'] == true)
+                    _miniRoleChip("Breeder", Colors.purple),
+                  if (person['is_owner'] == true)
+                    _miniRoleChip("Owner", Colors.blue),
+                  if (person['is_guardian'] == true)
+                    _miniRoleChip("Guardian", Colors.teal),
+                  if (person['is_supplier'] == true)
+                    _miniRoleChip("Supplier", Colors.orange),
+                  if (person['is_buyer'] == true)
+                    _miniRoleChip("Buyer", Colors.green),
+                  if (person['is_prospect'] == true)
+                    _miniRoleChip("Prospect", Colors.grey),
+                ],
+              ),
             ],
           ),
-        ],
+        ),
       ),
-      onTap: () {
-        Navigator.push(
-          context,
-          MaterialPageRoute(
-            builder: (_) =>
-                PeopleDetailPage(personId: person['people_id']),
-          ),
-        );
-      },
     );
   }
 
@@ -272,21 +274,27 @@ class _PeoplePageState extends State<PeoplePage> {
               controller: _searchController,
               onChanged: _onSearchChanged,
               decoration: InputDecoration(
-                hintText: 'Search last name, dog name, microchip...',
+                hintText: 'Search people, business, email...',
                 prefixIcon: const Icon(Icons.search),
+
                 suffixIcon: _searchController.text.isNotEmpty
                     ? IconButton(
                         icon: const Icon(Icons.clear),
                         onPressed: () {
                           _searchController.clear();
                           _fetchPeople(reset: true);
+                          setState(() {}); // 🔥 refresh UI
                         },
                       )
                     : null,
+
                 filled: true,
-                fillColor: Colors.grey.shade100,
+                fillColor: Theme.of(context).colorScheme.surfaceVariant,
+
+                contentPadding: const EdgeInsets.symmetric(vertical: 14),
+
                 border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(14),
+                  borderRadius: BorderRadius.circular(16),
                   borderSide: BorderSide.none,
                 ),
               ),
@@ -328,7 +336,7 @@ class _PeoplePageState extends State<PeoplePage> {
           ),
 
           Expanded(
-            child: _initialLoad
+            child: (_initialLoad || _isLoading && _people.isEmpty)
                 ? const Center(child: CircularProgressIndicator())
                 : ListView.builder(
                     controller: _scrollController,

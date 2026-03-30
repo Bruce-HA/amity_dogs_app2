@@ -22,6 +22,7 @@ class AmityTheme {
   // 🌿 EUCALYPTUS (Default)
   static final ThemeData _eucalyptusTheme = ThemeData(
     useMaterial3: true,
+
     colorScheme: const ColorScheme.light(
       primary: Color(0xFF5F8D7A),
       secondary: Color(0xFFA7C4BC),
@@ -29,7 +30,68 @@ class AmityTheme {
       background: Color(0xFFF7F9F8),
       error: Color(0xFFC8553D),
     ),
+
     scaffoldBackgroundColor: const Color(0xFFF7F9F8),
+
+    // 🔥 TEXT SYSTEM
+    textTheme: const TextTheme(
+      titleLarge: TextStyle(fontSize: 22, fontWeight: FontWeight.w600),
+      titleMedium: TextStyle(fontSize: 18, fontWeight: FontWeight.w600),
+      bodyMedium: TextStyle(fontSize: 14),
+      bodySmall: TextStyle(fontSize: 12, color: Colors.grey),
+    ),
+
+    // 🔥 INPUT (Search bar upgrade)
+    inputDecorationTheme: InputDecorationTheme(
+      filled: true,
+      fillColor: Colors.white,
+      contentPadding: const EdgeInsets.symmetric(
+        horizontal: 16,
+        vertical: 14,
+      ),
+      border: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(14),
+        borderSide: BorderSide.none,
+      ),
+    ),
+
+    // 🔥 CHIP (filters upgrade)
+    chipTheme: ChipThemeData(
+      backgroundColor: Colors.grey.shade100,
+      selectedColor: const Color(0xFF5F8D7A).withOpacity(0.15),
+
+      labelStyle: const TextStyle(
+        color: Colors.black87, // 🔥 FIXED CONTRAST
+        fontWeight: FontWeight.w500,
+      ),
+
+      secondaryLabelStyle: const TextStyle(
+        color: Colors.black87,
+      ),
+
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(20),
+        side: BorderSide(color: Colors.grey.shade300),
+      ),
+    ),
+
+    // 🔥 CARD (matches your AppCard style)
+    cardTheme: CardThemeData(
+      elevation: 0,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(18),
+      ),
+      color: Colors.white,
+    ),
+
+    appBarTheme: const AppBarTheme(
+      centerTitle: true,
+      elevation: 0,
+      backgroundColor: Colors.transparent,
+      foregroundColor: Colors.black,
+    ),
   );
 
   // 🌊 COASTAL
