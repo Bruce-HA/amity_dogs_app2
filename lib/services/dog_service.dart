@@ -1,10 +1,9 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
-import '../models/dog_model.dart';
 
 class DogService {
   final _client = Supabase.instance.client;
 
-  Future<List<Dog>> fetchDogs({
+  Future<List<Map<String, dynamic>>> fetchDogs({
     String search = '',
     String selectedType = 'All',
   }) async {
@@ -26,6 +25,6 @@ class DogService {
 
     final response = await query.order('dog_name', ascending: true);
 
-    return (response as List).map((dog) => Dog.fromMap(dog)).toList();
+    return List<Map<String, dynamic>>.from(response);
   }
 }

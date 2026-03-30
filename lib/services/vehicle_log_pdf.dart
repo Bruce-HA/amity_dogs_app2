@@ -14,19 +14,19 @@ class VehicleLogPdfService {
 
     final logo = pw.MemoryImage(logoBytes.buffer.asUint8List());
 
-    int totalKm = 0;
-    int businessKm = 0;
-    int privateKm = 0;
+    int totalKm = 0.toInt();
+    int businessKm = 0.toInt();
+    int privateKm = 0.toInt();
 
     for (final log in logs) {
-      final distance = log['distance_km'] ?? 0;
+      final num distance = (log['distance_km'] ?? 0) as num;
 
-      totalKm += distance;
+      totalKm += distance.toInt();
 
       if (log['is_business'] == true) {
-        businessKm += distance;
+        businessKm += distance.toInt();
       } else {
-        privateKm += distance;
+        privateKm += distance.toInt();
       }
     }
 

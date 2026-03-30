@@ -3,7 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:reorderable_grid_view/reorderable_grid_view.dart';
-import 'photo_viewer_page.dart';
+import 'package:amity_dogs_app/tabs/photo_viewer_page.dart';
 
 class DogPhotosTab extends StatefulWidget {
   final String dogId;
@@ -34,9 +34,9 @@ class _DogPhotosTabState extends State<DogPhotosTab> {
   }
 
   /*
-  =====================================================
+  =============================
   LOAD PHOTOS
-  =====================================================
+  =============================
   */
 
   Future<void> loadPhotos() async {
@@ -54,9 +54,9 @@ class _DogPhotosTabState extends State<DogPhotosTab> {
   }
 
   /*
-  =====================================================
+  =============================
   STORAGE HELPERS
-  =====================================================
+  =============================
   */
 
   String buildStoragePath(String fileName) {
@@ -70,9 +70,9 @@ class _DogPhotosTabState extends State<DogPhotosTab> {
   }
 
   /*
-  =====================================================
+  =============================
   SET HERO
-  =====================================================
+  =============================
   */
 
   Future<void> setHero(Map<String, dynamic> photo) async {
@@ -81,19 +81,16 @@ class _DogPhotosTabState extends State<DogPhotosTab> {
 
     if (photoId == null || fileName == null) return;
 
-    // Reset all hero flags
     await supabase
         .from('dog_photos')
         .update({'is_hero': false})
         .eq('dog_id', widget.dogId);
 
-    // Set selected photo as hero
     await supabase
         .from('dog_photos')
         .update({'is_hero': true})
         .eq('id', photoId);
 
-    // Copy file to hero.jpg
     final originalPath = buildStoragePath(fileName);
     final heroPath = buildStoragePath("hero.jpg");
 
@@ -111,15 +108,14 @@ class _DogPhotosTabState extends State<DogPhotosTab> {
   }
 
   /*
-  =====================================================
+  =============================
   UPLOAD PHOTO
-  =====================================================
+  =============================
   */
 
   Future<void> uploadPhoto() async {
     final result = await FilePicker.platform.pickFiles(
       type: FileType.image,
-      allowMultiple: false,
     );
 
     if (result == null || result.files.single.path == null) return;
@@ -127,14 +123,12 @@ class _DogPhotosTabState extends State<DogPhotosTab> {
     final file = File(result.files.single.path!);
 
     final extension = file.path.split('.').last.toLowerCase();
-    final timestamp = DateTime.now().millisecondsSinceEpoch;
-    final fileName = "$timestamp.$extension";
+    final fileName =
+        "${DateTime.now().millisecondsSinceEpoch}.$extension";
 
     final storagePath = buildStoragePath(fileName);
 
-    await supabase.storage
-        .from('dog_files')
-        .upload(
+    await supabase.storage.from('dog_files').upload(
           storagePath,
           file,
         );
@@ -150,15 +144,14 @@ class _DogPhotosTabState extends State<DogPhotosTab> {
   }
 
   /*
-  =====================================================
+  =============================
   PHOTO CARD
-  =====================================================
+  =============================
   */
 
   Widget buildPhotoCard(Map<String, dynamic> photo) {
     final fileName = photo['url'] ?? "";
     final description = photo['description'] ?? "";
-
     final fullUrl = getFullUrl(fileName);
 
     return GestureDetector(
@@ -167,15 +160,14 @@ class _DogPhotosTabState extends State<DogPhotosTab> {
           context,
           MaterialPageRoute(
             builder: (_) => PhotoViewerPage(
+              dogAla: widget.dogAla,
+              dogId: widget.dogId,
               imageUrl: fullUrl,
               photo: photo,
-              dogId: widget.dogId,
-              dogAla: widget.dogAla,
             ),
           ),
         );
 
-        // Always refresh photos when returning
         await loadPhotos();
         widget.onHeroChanged?.call();
       },
@@ -185,60 +177,40 @@ class _DogPhotosTabState extends State<DogPhotosTab> {
         ),
         clipBehavior: Clip.antiAlias,
         child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-
-            // IMAGE
             Expanded(
               child: Stack(
                 children: [
-
-                  // IMAGE
                   Positioned.fill(
                     child: Image.network(
                       fullUrl,
-                      width: double.infinity,
-                      height: double.infinity,
                       fit: BoxFit.cover,
                     ),
                   ),
-
-                  // HERO STAR
                   Positioned(
                     top: 4,
                     right: 4,
-                    child: Container(
-                      decoration: BoxDecoration(
-                        color: Colors.white70,
-                        borderRadius: BorderRadius.circular(20),
+                    child: IconButton(
+                      icon: Icon(
+                        photo['is_hero'] == true
+                            ? Icons.star
+                            : Icons.star_border,
+                        color: Colors.amber,
                       ),
-                      child: IconButton(
-                        icon: Icon(
-                          photo['is_hero'] == true
-                              ? Icons.star
-                              : Icons.star_border,
-                          color: Colors.amber,
-                        ),
-                        onPressed: () => setHero(photo),
-                      ),
+                      onPressed: () => setHero(photo),
                     ),
                   ),
-
                 ],
               ),
             ),
-
-            // DESCRIPTION BELOW IMAGE
             if (description.isNotEmpty)
               Padding(
-                padding: const EdgeInsets.all(8),
+                padding: const EdgeInsets.all(6),
                 child: Text(
                   description,
                   maxLines: 2,
                   overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
-                    fontSize: 13,
-                  ),
+                  style: const TextStyle(fontSize: 12),
                 ),
               ),
           ],
@@ -248,17 +220,15 @@ class _DogPhotosTabState extends State<DogPhotosTab> {
   }
 
   /*
-  =====================================================
+  =============================
   UI
-  =====================================================
+  =============================
   */
 
   @override
   Widget build(BuildContext context) {
     if (loading) {
-      return const Center(
-        child: CircularProgressIndicator(),
-      );
+      return const Center(child: CircularProgressIndicator());
     }
 
     return Column(
@@ -277,22 +247,19 @@ class _DogPhotosTabState extends State<DogPhotosTab> {
               : ReorderableGridView.builder(
                   padding: const EdgeInsets.all(8),
                   itemCount: photos.length,
-
-                  gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                  gridDelegate:
+                      const SliverGridDelegateWithFixedCrossAxisCount(
                     crossAxisCount: 3,
                     crossAxisSpacing: 8,
                     mainAxisSpacing: 8,
                     childAspectRatio: 0.75,
                   ),
-
                   onReorder: (oldIndex, newIndex) async {
-
                     final item = photos.removeAt(oldIndex);
                     photos.insert(newIndex, item);
 
                     setState(() {});
 
-                    // Save new order to Supabase
                     for (int i = 0; i < photos.length; i++) {
                       await supabase
                           .from('dog_photos')
@@ -300,7 +267,6 @@ class _DogPhotosTabState extends State<DogPhotosTab> {
                           .eq('id', photos[i]['id']);
                     }
                   },
-
                   itemBuilder: (context, index) {
                     return ReorderableDragStartListener(
                       key: ValueKey(photos[index]['id']),
@@ -308,7 +274,7 @@ class _DogPhotosTabState extends State<DogPhotosTab> {
                       child: buildPhotoCard(photos[index]),
                     );
                   },
-                )
+                ),
         ),
       ],
     );

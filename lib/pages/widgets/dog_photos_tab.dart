@@ -1,10 +1,16 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:amity_dogs_app/tabs/photo_viewer_page.dart';
 
 class DogPhotosTab extends StatefulWidget {
   final String dogId;
+  final String dogAla; // 👈 MUST EXIST
 
-  const DogPhotosTab({super.key, required this.dogId});
+  const DogPhotosTab({
+    super.key,
+    required this.dogId,
+    required this.dogAla,
+  });
 
   @override
   State<DogPhotosTab> createState() => _DogPhotosTabState();

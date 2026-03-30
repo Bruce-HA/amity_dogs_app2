@@ -226,9 +226,9 @@ class _VehicleReportPageState extends State<VehicleReportsPage> {
 
     final logs = await loadLogs();
 
-    int totalKm = 0;
-    int businessKm = 0;
-    int privateKm = 0;
+    int totalKm = 0.toInt();
+    int businessKm = 0.toInt();
+    int privateKm = 0.toInt();
 
     final pdf = pw.Document();
 
