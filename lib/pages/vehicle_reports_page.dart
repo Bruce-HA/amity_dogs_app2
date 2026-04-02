@@ -95,19 +95,26 @@ class _VehicleReportPageState extends State<VehicleReportsPage> {
   // =============================
 
   Future<List<Map<String, dynamic>>> loadLogs() async {
-    var query = supabase.from('vehicle_logs').select();
+    dynamic query = supabase.from('vehicle_logs').select();
 
-    // Apply vehicle filter ONLY if vehicleName exists
+    // Vehicle filter
     if (widget.vehicleName != null) {
       query = query.eq('vehicle_name', widget.vehicleName!);
     }
 
-    // Apply date filters
-    query = query
-        .gte('created_at', startDate.toIso8601String())
-        .lte('created_at', endDate.toIso8601String());
+    // ✅ Proper date handling (FIXED)
+    final start = DateTime(startDate.year, startDate.month, startDate.day);
+    final end = DateTime(endDate.year, endDate.month, endDate.day)
+        .add(const Duration(days: 1));
 
-    // Apply trip filter
+    final startUtc = start.toUtc();
+    final endUtc = end.toUtc();
+
+    query = query
+      .gte('created_at', startUtc.toIso8601String())
+      .lt('created_at', endUtc.toIso8601String());// important: < not <=
+
+    // Trip filter
     if (tripFilter == "Business") {
       query = query.eq('is_business', true);
     }
@@ -116,7 +123,9 @@ class _VehicleReportPageState extends State<VehicleReportsPage> {
       query = query.eq('is_business', false);
     }
 
-    // Execute query
+    // ✅ Order BEFORE executing
+    query = query.order('created_at');
+
     final result = await query;
 
     return List<Map<String, dynamic>>.from(result);
@@ -128,7 +137,8 @@ class _VehicleReportPageState extends State<VehicleReportsPage> {
 
   Future<void> uploadPdfToSupabase(Uint8List bytes, String filename) async {
     try {
-      final vehicle = widget.vehicleName!.replaceAll(" ", "");
+      final vehicle = (widget.vehicleName ?? "AllVehicles")
+        .replaceAll(" ", "");
 
       final timestamp = DateTime.now().millisecondsSinceEpoch;
 
@@ -307,9 +317,9 @@ class _VehicleReportPageState extends State<VehicleReportsPage> {
                   return pw.TableRow(
                     children: [
                       cell(
-                        DateFormat(
-                          'dd/MM/yyyy',
-                        ).format(DateTime.parse(log['created_at'])),
+                       DateFormat('dd/MM/yyyy hh:mm a').format(
+                        DateTime.parse(log['created_at']).toLocal(),
+                      )
                       ),
 
                       cell(log['driver_name'] ?? ""),

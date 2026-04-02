@@ -2,20 +2,54 @@ import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'pages/dashboard_page.dart';
-import '/login_page.dart';
+import 'login_page.dart';
+import 'pages/reset_password_page.dart';
 
-class AuthGate extends StatelessWidget {
+class AuthGate extends StatefulWidget {
   const AuthGate({super.key});
 
   @override
-  Widget build(BuildContext context) {
+  State<AuthGate> createState() => _AuthGateState();
+}
 
-    final session = Supabase.instance.client.auth.currentSession;
+class _AuthGateState extends State<AuthGate> {
+  final supabase = Supabase.instance.client;
 
-    if (session == null) {
-      return const LoginPage();
-    }
+  @override
+  void initState() {
+    super.initState();
 
-    return const DashboardPage();
+    supabase.auth.onAuthStateChange.listen((data) {
+      final event = data.event;
+
+      if (event == AuthChangeEvent.passwordRecovery) {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          Navigator.of(context).push(
+            MaterialPageRoute(
+              builder: (_) => const ResetPasswordPage(),
+            ),
+          );
+        });
+      }
+    });
   }
+
+  @override
+    Widget build(BuildContext context) {
+      final session = supabase.auth.currentSession;
+
+      // 🔥 Detect recovery session
+      final isRecovery =
+          supabase.auth.currentSession?.user?.recoverySentAt != null;
+
+      if (isRecovery) {
+        return const ResetPasswordPage();
+      }
+
+      if (session == null) {
+        return const LoginPage();
+      }
+
+      return const DashboardPage();
+    }
 }

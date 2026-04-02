@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'widgets/person_picker.dart';
+import 'widgets/dog_ala_picker.dart';
 
 class DogEditPage extends StatefulWidget {
   final Map<String, dynamic> dog;
@@ -24,6 +25,8 @@ class _DogEditPageState extends State<DogEditPage> {
   String? desexed;
   Map<String, dynamic>? breeder;
   Map<String, dynamic>? owner;
+  Map<String, dynamic>? dam;
+  Map<String, dynamic>? sire; 
 
   final List<String> statuses = [
     'Pending',
@@ -57,6 +60,10 @@ class _DogEditPageState extends State<DogEditPage> {
     dobController =
         TextEditingController(text: widget.dog['dob']);
 
+    dam = widget.dog['dam'];
+
+    sire = widget.dog['sire'];    
+
     spayDueController =
         TextEditingController(text: widget.dog['spay_due'] ?? '');
 
@@ -73,6 +80,8 @@ class _DogEditPageState extends State<DogEditPage> {
 
   Future<void> save() async {
     await supabase.from('dogs').update({
+      'dam_id': dam != null ? dam!['id'] : null,
+      'sire_id': sire != null ? sire!['id'] : null,
       'dog_name': nameController.text,
       'dog_ala': alaController.text,
       'microchip': microchipController.text,
@@ -202,6 +211,27 @@ class _DogEditPageState extends State<DogEditPage> {
                   labelText: "Spay Due Date"),
               onTap: () => pickDate(spayDueController),
             ),
+///
+            const SizedBox(height: 16),
+
+            DogAlaPicker(
+              label: 'Mother (Dam)',
+              selectedDog: dam,
+              onSelected: (dog) {
+                setState(() => dam = dog);
+              },
+            ),
+
+            const SizedBox(height: 12),
+
+            DogAlaPicker(
+              label: 'Father (Sire)',
+              selectedDog: sire,
+              onSelected: (dog) {
+                setState(() => sire = dog);
+              },
+            ),
+///
 ///
             const SizedBox(height: 16),
 

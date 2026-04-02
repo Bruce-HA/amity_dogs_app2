@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'services/app_session.dart';
 import 'pages/dashboard_page.dart';
+import 'services/app_user.dart';
 
 class SessionGate extends StatefulWidget {
   const SessionGate({super.key});
@@ -20,6 +21,7 @@ class _SessionGateState extends State<SessionGate> {
 
   Future<void> _load() async {
     await AppSession().load();
+    await AppUser.load(); // ✅ ADD THIS
     setState(() => loading = false);
   }
 

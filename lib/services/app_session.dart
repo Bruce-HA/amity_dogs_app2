@@ -11,9 +11,11 @@ class AppSession {
   String? businessId;
   String? role;
 
-  bool get isSuperAdmin => role == 'super_admin';
-  bool get isOwner => role == 'owner' || role == 'super_admin';
+  bool get isAdmin => role == 'admin';
+  bool get isBreeder => role == 'breeder';
   bool get isHelper => role == 'helper';
+
+  bool get canManageUsers => isAdmin;
 
   Future<void> load() async {
     final user = supabase.auth.currentUser;

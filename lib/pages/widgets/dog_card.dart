@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../utils/date_utils.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 class DogCard extends StatelessWidget {
   final Map<String, dynamic> dog;
@@ -13,7 +14,23 @@ class DogCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final imageUrl = dog['hero_image_url'];
+    // 🔥 GET HERO IMAGE FROM dog_photos
+    final heroList = dog['hero'] as List?;
+
+    String? imageUrl;
+
+    if (heroList != null && heroList.isNotEmpty) {
+      final hero = heroList.first;
+
+      final fileName = hero['url'];
+      final dogAla = dog['dog_ala'];
+
+      if (fileName != null && dogAla != null) {
+        imageUrl = Supabase.instance.client.storage
+            .from('dog_files')
+            .getPublicUrl('$dogAla/photos/$fileName');
+      }
+    }
 
     String age = '';
     final dobRaw = dog['dob'];
@@ -48,18 +65,19 @@ class DogCard extends StatelessWidget {
             ClipRRect(
               borderRadius:
                   const BorderRadius.vertical(top: Radius.circular(12)),
-              child: imageUrl != null
-                  ? Image.network(
-                      imageUrl,
-                      height: 100,
-                      width: double.infinity,
-                      fit: BoxFit.contain,
-                    )
-                  : Container(
-                      height: 100,
-                      color: Colors.grey.shade300,
-                    ),
-            ),
+             child: imageUrl != null
+                ? Image.network(
+                    imageUrl,
+                    height: 110,
+                    width: double.infinity,
+                    fit: BoxFit.cover,
+                  )
+                : Container(
+                    height: 110,
+                    color: Colors.grey.shade300,
+                  )
+                 ),
+  
 
             // CONTENT
             Expanded(

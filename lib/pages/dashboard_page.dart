@@ -2,10 +2,11 @@ import 'package:flutter/material.dart';
 
 import 'dogs_page.dart';
 import 'people_page.dart';
-import 'litters_page.dart';
+import 'breeding/litters_page.dart';
 import 'calendar_page.dart';
 import 'vehicle_log_page.dart';
 import 'reports_page.dart';
+import 'dailies/dailies_page.dart';
 
 // Create these pages if not already existing
 import 'admin_page.dart';
@@ -31,6 +32,7 @@ class DashboardPage extends StatelessWidget {
           dashboardTile(context, Icons.pets, 'Dogs', const DogsPage()),
           dashboardTile(context, Icons.people, 'People', const PeoplePage()),
           dashboardTile(context, Icons.child_care, 'Litters', const LittersPage()),
+          dashboardTile(context, Icons.event_note, 'Dailies', DailiesPage()),
           dashboardTile(context, Icons.calendar_month, 'Calendar', const CalendarPage()),
           dashboardTile(context, Icons.directions_car, 'Vehicle Log', const VehicleLogPage()),
           dashboardTile(context, Icons.bar_chart, 'Reports', const ReportsPage()),

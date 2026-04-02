@@ -17,12 +17,29 @@ class _LoginPageState extends State<LoginPage> {
   Future<void> signIn() async {
     try {
       await supabase.auth.signInWithPassword(
-        email: emailController.text,
-        password: passwordController.text,
+        email: emailController.text.trim(),
+        password: passwordController.text.trim(),
       );
     } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Login error: $e')),
+      );
+    }
+  }
+
+  Future<void> resetPassword() async {
+    try {
+      await supabase.auth.resetPasswordForEmail(
+      emailController.text.trim(),
+      redirectTo: 'io.supabase.flutter://login-callback',
+    );
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Password reset email sent')),
+      );
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Error: $e')),
       );
     }
   }
@@ -49,6 +66,10 @@ class _LoginPageState extends State<LoginPage> {
             ElevatedButton(
               onPressed: signIn,
               child: const Text('Login'),
+            ),
+            TextButton(
+              onPressed: resetPassword,
+              child: const Text("Forgot Password?"),
             ),
           ],
         ),

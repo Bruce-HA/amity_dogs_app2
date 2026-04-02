@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
-
+import '../../ui/spay_due_label.dart';
 import '../../ui/app_card.dart';
 import '../../ui/spacing.dart';
+import '../../utils/date_utils.dart';
+import 'package:cached_network_image/cached_network_image.dart';
 
 class DogListCard extends StatelessWidget {
   final Map dog;
@@ -14,30 +16,64 @@ class DogListCard extends StatelessWidget {
     required this.onTap,
   });
 
+  Widget _sexIcon(String? sex) {
+    final value = (sex ?? '').toLowerCase().trim();
+
+    if (value == 'male') {
+      return const Icon(Icons.male, color: Colors.blue, size: 18);
+    } else if (value == 'female') {
+      return const Icon(Icons.female, color: Colors.pink, size: 18);
+    } else {
+      return const SizedBox();
+    }
+  }
+
+  /// 🔥 SAFE HERO IMAGE RESOLVER
+  String? _resolveHeroUrl(Map dog) {
+  try {
+      final heroList = dog['hero'] as List?;
+
+      if (heroList == null || heroList.isEmpty) return null;
+
+      final hero = heroList.firstWhere(
+        (p) => p['is_hero'] == true,
+        orElse: () => heroList.first,
+      );
+
+      final fileName = hero['url'];
+      final dogAla = dog['dog_ala'];
+
+      if (fileName == null || dogAla == null) return null;
+
+      return Supabase.instance.client.storage
+          .from('dog_files')
+          .getPublicUrl(
+            '$dogAla/photos/$fileName',
+            transform: const TransformOptions(
+              width: 600,
+              height: 450,
+              resize: ResizeMode.cover,
+              quality: 75,
+            ),
+        );
+  } catch (e) {
+    debugPrint('Hero image error: $e');
+    return null;
+  }
+}
+
   @override
   Widget build(BuildContext context) {
     final name = dog['dog_name'] ?? 'Unnamed';
     final status = dog['status'] ?? '';
     final sex = dog['sex'] ?? '';
 
+    /// 🔥 NEW: stats from DB view
+
     final litters = dog['litter_count'] ?? 0;
     final pups = dog['puppy_count'] ?? 0;
 
-    // 🔥 IMAGE RESOLUTION
-    final rawUrl = dog['hero_image_url'];
-
-    String? finalUrl;
-
-    if (rawUrl != null && rawUrl.toString().isNotEmpty) {
-      if (rawUrl.toString().startsWith('http')) {
-        finalUrl = rawUrl;
-      } else {
-        final dogAla = dog['dog_ala'];
-        finalUrl = Supabase.instance.client.storage
-            .from('dog_files')
-            .getPublicUrl('$dogAla/photos/$rawUrl');
-      }
-    }
+    final finalUrl = _resolveHeroUrl(dog);
 
     return AppCard(
       onTap: onTap,
@@ -51,16 +87,17 @@ class DogListCard extends StatelessWidget {
             child: finalUrl != null
                 ? AspectRatio(
                     aspectRatio: 4 / 3,
-                    child: Image.network(
-                      finalUrl,
+                    child: CachedNetworkImage(
+                      imageUrl: finalUrl,
                       fit: BoxFit.cover,
+                      memCacheWidth: 600,
+                      fadeInDuration: const Duration(milliseconds: 150),
+                      filterQuality: FilterQuality.low,
+                      placeholder: (context, url) => _placeholder(),
+                      errorWidget: (context, url, error) => _placeholder(),
                     ),
                   )
-                : Container(
-                    height: 180,
-                    color: Colors.grey.shade200,
-                    child: const Icon(Icons.pets, size: 40),
-                  ),
+                : _placeholder(),
           ),
 
           Padding(
@@ -72,18 +109,38 @@ class DogListCard extends StatelessWidget {
                 Row(
                   children: [
                     Expanded(
-                      child: Text(
-                        name,
-                        style: const TextStyle(
-                          fontSize: 18,
-                          fontWeight: FontWeight.w600,
+                      child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          name,
+                          style: const TextStyle(
+                            fontSize: 18,
+                            fontWeight: FontWeight.w600,
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
                         ),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                      ),
+                        const SizedBox(height: 2),
+                        Text(
+                          dog['dog_ala'] ?? '',
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: Colors.grey.shade600,
+                          ),
+                        ),
+                      ],
                     ),
-                    Text(sex == 'Male' ? '🔵' : '🩷'),
+                    ),
+                    _sexIcon(sex),
                   ],
+                ),
+
+                AppSpacing.hXs,
+
+                Text(
+                  calculateDogAge(dog['dob']),
+                  style: Theme.of(context).textTheme.bodySmall,
                 ),
 
                 AppSpacing.hXs,
@@ -104,14 +161,16 @@ class DogListCard extends StatelessWidget {
                   ),
                 ),
 
+                // SPAY LABEL
+                SpayDueLabel(spayDue: dog['spay_due']),
+
                 AppSpacing.hMd,
 
                 // STATS
                 Row(
                   children: [
-                    _Stat("Litters", litters),
-                    AppSpacing.wLg,
-                    _Stat("Pups", pups),
+                    Expanded(child: _Stat("Litters", litters)),
+                    Expanded(child: _Stat("Pups", pups)),
                   ],
                 ),
               ],
@@ -121,9 +180,17 @@ class DogListCard extends StatelessWidget {
       ),
     );
   }
+
+  Widget _placeholder() {
+    return Container(
+      height: 180,
+      color: Colors.grey.shade200,
+      child: const Icon(Icons.pets, size: 40),
+    );
+  }
 }
 
-// 🔥 REQUIRED helper widget (this was missing)
+// 🔥 STAT WIDGET
 class _Stat extends StatelessWidget {
   final String label;
   final int value;

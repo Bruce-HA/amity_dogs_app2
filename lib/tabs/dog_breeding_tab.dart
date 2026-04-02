@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import '../pages/breeding/breeding_plans_page.dart';
+import '../pages/breeding/litters_page.dart';
 
 class DogBreedingTab extends StatefulWidget {
   final String dogId;
@@ -37,38 +39,35 @@ class _DogBreedingTabState extends State<DogBreedingTab> {
     if (dogResult == null) return;
 
     final dogAla = dogResult['dog_ala'];
+    print('DOG ALA: $dogAla');
 
     // 🔥 ONLY fetch relevant pups (this was the issue)
-    final pups = await supabase
-        .from('dogs')
-        .select('dog_ala, sex')
-        .or('mother_ala.eq.$dogAla,father_ala.eq.$dogAla');
+    final damLitters = await supabase
+        .from('litters')
+        .select('id, male_count, female_count, dam_ala, sire_ala')
+        .eq('dam_ala', dogAla);
 
-    final data = pups as List;
+    final sireLitters = await supabase
+        .from('litters')
+        .select('id, male_count, female_count, dam_ala, sire_ala')
+        .eq('sire_ala', dogAla);
 
-    final Set<String> litterSet = {};
+    final List data = [
+      ...damLitters as List,
+      ...sireLitters as List,
+    ];
+
+    int totalLitters = data.length;
     int m = 0;
     int f = 0;
 
-    for (var pup in data) {
-      final ala = pup['dog_ala']?.toString();
-      final sexRaw = pup['sex']?.toString().toLowerCase();
-
-      if (sexRaw != null) {
-        if (sexRaw.startsWith('m')) m++;
-        if (sexRaw.startsWith('f')) f++;
-      }
-
-      if (ala != null) {
-        final parts = ala.split('-'); // 🔥 match your DB format
-        if (parts.length >= 2) {
-          litterSet.add('${parts[0]}-${parts[1]}');
-        }
-      }
+    for (var litter in data) {
+      m += (litter['male_count'] ?? 0) as int;
+      f += (litter['female_count'] ?? 0) as int;
     }
 
     setState(() {
-      litterCount = litterSet.length;
+      litterCount = totalLitters;
       maleCount = m;
       femaleCount = f;
       loading = false;
@@ -81,7 +80,7 @@ class _DogBreedingTabState extends State<DogBreedingTab> {
       return const Center(child: CircularProgressIndicator());
     }
 
-    return Padding(
+    return SingleChildScrollView(
       padding: const EdgeInsets.all(16),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -96,8 +95,112 @@ class _DogBreedingTabState extends State<DogBreedingTab> {
           const SizedBox(height: 8),
           Text('🔵♂ $maleCount'),
           Text('🩷♀ $femaleCount'),
+
+          const SizedBox(height: 24),
+
+          const Text(
+            'Actions',
+            style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+          ),
+          const SizedBox(height: 12),
+
+          _actionButton(
+            context,
+            label: 'Breeding Plans',
+            icon: Icons.account_tree,
+            onTap: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => BreedingPlansPage(
+                    dogId: widget.dogId,
+                  ),
+                ),
+              );
+            },
+          ),
+
+          _actionButton(
+            context,
+            label: 'Matings',
+            icon: Icons.favorite,
+            onTap: () {
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(content: Text('Matings page coming next')),
+              );
+            },
+          ),
+
+          _actionButton(
+            context,
+            label: 'Litters',
+            icon: Icons.pets,
+            onTap: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => LittersPage(
+                    dogId: widget.dogId,
+                  ),
+                ),
+              );
+            },
+          ),
+
+          const SizedBox(height: 12),
+
+          _actionButton(
+            context,
+            label: 'Record Whelping',
+            icon: Icons.child_care,
+            isPrimary: true,
+            onTap: () {
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(content: Text('Whelping page coming next')),
+              );
+            },
+          ),
         ],
       ),
     );
   }
+}
+Widget _actionButton(
+  BuildContext context, {
+  required String label,
+  required IconData icon,
+  required VoidCallback onTap,
+  bool isPrimary = false,
+}) {
+  return Padding(
+    padding: const EdgeInsets.only(bottom: 10),
+    child: InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(12),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+        decoration: BoxDecoration(
+          color: isPrimary ? Colors.blue : Colors.grey.shade100,
+          borderRadius: BorderRadius.circular(12),
+        ),
+        child: Row(
+          children: [
+            Icon(icon, color: isPrimary ? Colors.white : Colors.black87),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Text(
+                label,
+                style: TextStyle(
+                  color: isPrimary ? Colors.white : Colors.black87,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ),
+            Icon(Icons.chevron_right,
+                color: isPrimary ? Colors.white : Colors.black54),
+          ],
+        ),
+      ),
+    ),
+  );
 }

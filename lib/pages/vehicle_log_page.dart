@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'vehicle_reports_page.dart';
+import '../services/vehicle_log_service.dart';
+import '../services/app_user.dart';
 
 class VehicleLogPage extends StatefulWidget {
   const VehicleLogPage({super.key});
@@ -27,7 +29,7 @@ class _VehicleLogPageState extends State<VehicleLogPage> {
   bool loading = true;
   bool saving = false;
 
-  final String driverName = 'Bruce McLean';
+  String get driverName => AppUser.name;
 
   @override
   void initState() {
@@ -44,24 +46,15 @@ class _VehicleLogPageState extends State<VehicleLogPage> {
 
   Future<void> loadAllVehicleKms() async {
     try {
-      final response = await supabase
-          .from('vehicle_logs')
-          .select('vehicle_name, end_km, created_at')
-          .order('created_at', ascending: false);
+      final data = await VehicleLogService.getLastKms();
 
-      for (var row in response) {
-        final vehicle = row['vehicle_name'];
-        final km = row['end_km'];
-
-        if (!lastKm.containsKey(vehicle)) {
-          lastKm[vehicle] = km;
-        }
-      }
+      lastKm.clear();
+      lastKm.addAll(data);
 
       startKmController.text =
           (lastKm[selectedVehicle] ?? 0).toString();
     } catch (e) {
-      debugPrint("Error loading vehicle KMs: $e");
+      debugPrint(e.toString());
     }
 
     setState(() {
@@ -75,35 +68,24 @@ class _VehicleLogPageState extends State<VehicleLogPage> {
 
     if (startKm == null || endKm == null) return;
 
-    final distance = endKm - startKm;
-
     saving = true;
     setState(() {});
 
     try {
-      await supabase.from('vehicle_logs').insert({
-        'vehicle_name': selectedVehicle,
-        'start_km': startKm,
-        'end_km': endKm,
-        'distance_km': distance,
-        'is_business': isBusiness,
-        'notes': notesController.text,
-        'driver_name': driverName,
-      });
+      await VehicleLogService.saveLog(
+        vehicleName: selectedVehicle,
+        startKm: startKm,
+        endKm: endKm,
+        isBusiness: isBusiness,
+        notes: notesController.text,
+        driverName: driverName,
+      );
 
-      lastKm[selectedVehicle] = endKm;
-
-      startKmController.text = endKm.toString();
-      endKmController.clear();
-      notesController.clear();
-
-      ScaffoldMessenger.of(context)
-          .showSnackBar(const SnackBar(content: Text('Vehicle log saved')));
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Vehicle log saved')),
+      );
     } catch (e) {
-      debugPrint("Save error: $e");
-
-      ScaffoldMessenger.of(context)
-          .showSnackBar(const SnackBar(content: Text('Error saving log')));
+      debugPrint(e.toString());
     }
 
     saving = false;

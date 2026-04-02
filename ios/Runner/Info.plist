@@ -3,6 +3,12 @@
 <plist version="1.0">
 <dict>
 
+	<key>NSMicrophoneUsageDescription</key>
+	<string>We use the microphone to record notes</string>
+
+	<key>NSSpeechRecognitionUsageDescription</key>
+	<string>We use speech recognition to convert voice to text</string>
+
 	<key>CADisableMinimumFrameDurationOnPhone</key>
 	<true/>
 
@@ -89,6 +95,27 @@
 		<string>UIInterfaceOrientationPortraitUpsideDown</string>
 		<string>UIInterfaceOrientationLandscapeLeft</string>
 		<string>UIInterfaceOrientationLandscapeRight</string>
+	</array>
+	<key>CFBundleURLTypes</key>
+	<array>
+	<dict>
+		<key>CFBundleURLSchemes</key>
+		<array>
+		<string>io.supabase.flutter</string>
+		</array>
+	</dict>
+	<key>CFBundleURLTypes</key>
+	
+	<array>
+	<dict>
+		<key>CFBundleURLName</key>
+		<string>supabase</string>
+		<key>CFBundleURLSchemes</key>
+		<array>
+		<string>io.supabase.flutter</string>
+		</array>
+	</dict>
+	</array>
 	</array>
 
 </dict>

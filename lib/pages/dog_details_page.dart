@@ -8,8 +8,9 @@ import '../tabs/dog_notes_tab.dart';
 import '../tabs/dna_tab.dart';
 import 'dog_edit_page.dart';
 import 'people_detail_page.dart';
-import 'dog_details_page.dart';
 import 'widgets/dog_card.dart';
+import '../ui/spay_due_label.dart';
+
 
 class DogDetailsPage extends StatefulWidget {
   final String dogId;
@@ -41,6 +42,25 @@ class _DogDetailsPageState extends State<DogDetailsPage> {
   int puppyCount = 0;
   int maleCount = 0;
   int femaleCount = 0;
+
+  List<String> getTabs() {
+    if (dog == null) return [];
+
+    final status = dog!['status']?.toString();
+
+    final tabs = [
+      'Overview',
+      'Photos',
+      'Notes',
+      'Files',
+    ];
+
+    if (status != 'Pet') {
+      tabs.insert(2, 'Breeding');
+    }
+
+    return tabs;
+  }
 
   @override
   void initState() {
@@ -90,21 +110,35 @@ class _DogDetailsPageState extends State<DogDetailsPage> {
     }
 
     // 🔥 LOAD PARENTS
-    if (dogResult['mother_ala'] != null) {
-      final res = await supabase
-          .from('dogs_list_view')
-          .select()
-          .eq('dog_ala', dogResult['mother_ala']);
-      if (res.isNotEmpty) mother = res.first;
-    }
+    final motherRes = await supabase
+        .from('dogs_list_view')
+        .select('''
+          *,
+          hero:dog_photos!dog_photos_dog_id_fkey (
+            url,
+            is_hero
+          )
+        ''')
+        .eq('dog_ala', dogResult['mother_ala'])
+        .eq('dog_photos.is_hero', true);
 
-    if (dogResult['father_ala'] != null) {
-      final res = await supabase
-          .from('dogs_list_view')
-          .select()
-          .eq('dog_ala', dogResult['father_ala']);
-      if (res.isNotEmpty) father = res.first;
-    }
+    if (motherRes.isNotEmpty) mother = motherRes.first;
+
+    /// == father
+
+    final fatherRes = await supabase
+        .from('dogs_list_view')
+        .select('''
+          *,
+          hero:dog_photos!dog_photos_dog_id_fkey (
+            url,
+            is_hero
+          )
+        ''')
+        .eq('dog_ala', dogResult['father_ala'])
+        .eq('dog_photos.is_hero', true);
+
+    if (fatherRes.isNotEmpty) father = fatherRes.first;
 
     final isPet =
         (dogResult['status'] ?? '').toString().toLowerCase() == 'pet';
@@ -195,78 +229,85 @@ class _DogDetailsPageState extends State<DogDetailsPage> {
     );
   }
 
-  Widget buildOverview() {
-    String age = '';
-    final dobRaw = dog?['dob'];
-    if (dobRaw != null) {
-      age = calculateDogAge(dobRaw.toString());
+  Widget _buildOverviewContent() {
+    final d = dog;
+
+    if (d == null) {
+      return const Center(child: CircularProgressIndicator());
     }
 
+    final age = d['dob'] != null
+        ? calculateDogAge(d['dob'].toString())
+        : '';
+
     final isPet =
-        (dog?['status'] ?? '').toString().toLowerCase() == 'pet';
+        (d['status'] ?? '').toString().toLowerCase() == 'pet';
 
     return SingleChildScrollView(
       padding: const EdgeInsets.all(16),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(dog?['dog_name'] ?? '',
-              style:
-                  const TextStyle(fontSize: 22, fontWeight: FontWeight.bold)),
-          Text(dog?['dog_ala'] ?? ''),
-          Text("Status: ${dog?['status'] ?? ''}"),
-          Text(age.isNotEmpty ? "Age: $age" : "Age: Unknown"),
-          const SizedBox(height: 20),
 
-          // 🔥 BREEDER
-          // 🔥 OWNER
+          /// HEADER
+          Text(
+            d['dog_name'] ?? '',
+            style: const TextStyle(
+              fontSize: 22,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+          Text(d['dog_ala'] ?? ''),
+          Text("Status: ${d['status'] ?? ''}"),
+          if (age.isNotEmpty) Text("Age: $age"),
+
+          const SizedBox(height: 8),
+
+          if (d['spay_due'] != null)
+            SpayDueLabel(spayDue: d['spay_due']),
+
+          const SizedBox(height: 16),
+
+          /// OWNER + BREEDER
           Row(
             children: [
-              // 🐾 BREEDER
               Expanded(
                 child: breeder != null
                     ? _PersonCard(
-                        title: 'Breeder',
-                        primary: breeder!['business_name']?.toString().isNotEmpty == true
-                            ? breeder!['business_name']
-                            : "${breeder!['first_name_1st']} ${breeder!['last_name_1st']}",
-                        secondary:
-                            "${breeder!['first_name_1st']} ${breeder!['last_name_1st']}",
-                        icon: Icons.home_work,
+                        title: "Breeder",
+                        primary:
+                            "${breeder!['first_name_1st'] ?? ''} ${breeder!['last_name_1st'] ?? ''}",
+                        secondary: breeder!['phone_1st'] ?? '',
+                        icon: Icons.pets,
                         onTap: () {
                           Navigator.push(
                             context,
                             MaterialPageRoute(
-                              builder: (_) => PeopleDetailPage(
-                                personId: breeder!['people_id'],
-                              ),
+                              builder: (_) =>
+                                  PeopleDetailPage(personId: breeder!['people_id']),
                             ),
                           );
                         },
                       )
-                    : const SizedBox(),
+                    : const SizedBox(),  // 👈 THIS is where it goes
               ),
 
-              const SizedBox(width: 12),
+              const SizedBox(width: 8),
 
-              // 👤 OWNER (NOW MATCHES BREEDER LOGIC)
               Expanded(
                 child: owner != null
                     ? _PersonCard(
-                        title: 'Owner',
-                        primary: owner!['business_name']?.toString().isNotEmpty == true
-                            ? owner!['business_name']
-                            : "${owner!['first_name_1st']} ${owner!['last_name_1st']}",
-                        secondary:
-                            "${owner!['first_name_1st']} ${owner!['last_name_1st']}",
+                        title: "Owner",
+                        primary:
+                            "${owner!['first_name_1st'] ?? ''} ${owner!['last_name_1st'] ?? ''}",
+                        secondary: owner!['phone_1st'] ?? '',
                         icon: Icons.person,
                         onTap: () {
                           Navigator.push(
                             context,
                             MaterialPageRoute(
-                              builder: (_) => PeopleDetailPage(
-                                personId: owner!['people_id'],
-                              ),
+                              builder: (_) =>
+                                  PeopleDetailPage(personId: owner!['people_id']),
                             ),
                           );
                         },
@@ -275,29 +316,41 @@ class _DogDetailsPageState extends State<DogDetailsPage> {
               ),
             ],
           ),
+          const SizedBox(height: 16),
 
-          const SizedBox(height: 20),
+          /// STATS
+          Row(
+            children: [
+              _Stat("Litters", litterCount),
+              const SizedBox(width: 16),
+              _Stat("Pups", puppyCount),
+            ],
+          ),
 
-          // 🔥 LITTERS
+          const SizedBox(height: 16),
+
+          /// BREEDING
           if (!isPet) ...[
-            const Text('Litters',
-                style: TextStyle(fontWeight: FontWeight.bold)),
-            Text('Litters: $litterCount'),
-            Text('Puppies: $puppyCount'),
-            Text('🔵♂ $maleCount'),
-            Text('🩷♀ $femaleCount'),
-            const SizedBox(height: 20),
+            _buildBreedingOverviewSection(d),
+            _buildGeneticsSection(d),
+            _buildIdentificationSection(d),
           ],
 
-          // 🔥 PARENTS
-          SizedBox(
-            height: 180,
-            child: Row(
+          const SizedBox(height: 16),
+
+          /// PARENTS
+          if (mother != null || father != null) ...[
+            const Text(
+              "👨‍👩‍👧 Parents",
+              style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+            ),
+            const SizedBox(height: 10),
+
+            Row(
               children: [
                 Expanded(
                   child: mother != null
-                      ? DogCard(
-                          dog: mother!,
+                      ? GestureDetector(
                           onTap: () {
                             Navigator.push(
                               context,
@@ -307,14 +360,14 @@ class _DogDetailsPageState extends State<DogDetailsPage> {
                               ),
                             );
                           },
+                          child: DogCard(dog: mother!),
                         )
                       : const SizedBox(),
                 ),
                 const SizedBox(width: 8),
                 Expanded(
                   child: father != null
-                      ? DogCard(
-                          dog: father!,
+                      ? GestureDetector(
                           onTap: () {
                             Navigator.push(
                               context,
@@ -324,18 +377,22 @@ class _DogDetailsPageState extends State<DogDetailsPage> {
                               ),
                             );
                           },
+                          child: DogCard(dog: father!),
                         )
                       : const SizedBox(),
                 ),
               ],
             ),
-          ),
+          ],
         ],
       ),
     );
   }
 
+
   Widget buildTabContent() {
+    final tabs = getTabs();
+
     if (tabs.isEmpty || selectedTab >= tabs.length) {
       return const SizedBox();
     }
@@ -344,7 +401,8 @@ class _DogDetailsPageState extends State<DogDetailsPage> {
 
     switch (tab) {
       case 'Overview':
-        return buildOverview();
+        return _buildOverviewContent();
+
       case 'Photos':
         return DogPhotosTab(
           dogId: widget.dogId,
@@ -353,23 +411,27 @@ class _DogDetailsPageState extends State<DogDetailsPage> {
             await loadDog();
           },
         );
+
       case 'Breeding':
         return DogBreedingTab(dogId: widget.dogId);
-      case 'DNA':
-        return DnaTab(dogId: widget.dogId);
+
       case 'Notes':
         return DogNotesTab(dogId: widget.dogId);
+
       case 'Files':
         return DogFilesTab(
           dogId: widget.dogId,
           dogAla: dog!['dog_ala'],
         );
+
       default:
         return const SizedBox();
     }
   }
 
   Widget buildTabs() {
+    final tabs = getTabs();
+
     return Wrap(
       children: List.generate(tabs.length, (index) {
         final isSelected = selectedTab == index;
@@ -432,6 +494,65 @@ class _DogDetailsPageState extends State<DogDetailsPage> {
       ),
     );
   }
+////
+  Widget _buildBreedingOverviewSection(Map<String, dynamic> dog) {
+    final raw = dog['zooeasy_raw'] ?? {};
+
+    String getVal(String key) {
+      final v = raw[key];
+      if (v == null || v.toString().trim().isEmpty) return '-';
+      return v.toString();
+    }
+
+    return _buildSectionCard(
+      title: '🧬 Breeding Overview',
+      child: Column(
+        children: [
+          _infoRow('Breed %', getVal('breed_percentage')),
+          _infoRow('Inbreeding', getVal('inbreeding_coefficient')),
+          _infoRow('Generations', getVal('complete_generations')),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSectionCard({
+    required String title,
+    required Widget child,
+  }) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.04),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              title,
+              style: const TextStyle(
+                fontSize: 16,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+            const SizedBox(height: 12),
+            child,
+          ],
+        ),
+      ),
+    );
+  }
+
 }
 class _PersonCard extends StatelessWidget {
   final String title;
@@ -447,7 +568,7 @@ class _PersonCard extends StatelessWidget {
     required this.icon,
     required this.onTap,
   });
-
+  
   @override
   Widget build(BuildContext context) {
     return InkWell(
@@ -529,4 +650,182 @@ class _PersonCard extends StatelessWidget {
       ),
     );
   }
+}
+
+class _Stat extends StatelessWidget {
+  final String label;
+  final int value;
+
+  const _Stat(this.label, this.value);
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        Text(
+          value.toString(),
+          style: const TextStyle(fontWeight: FontWeight.w600),
+        ),
+        const SizedBox(width: 4),
+        Text(
+          label,
+          style: TextStyle(color: Colors.grey.shade600),
+        ),
+      ],
+    );
+  }
+}
+
+Widget _buildGeneticsSection(Map dog) {
+  final raw = dog['zooeasy_raw'] ?? {};
+
+  return _sectionCard(
+    title: "🧪 Genetics & Health",
+    children: [
+      _infoRow("ECG", raw['ecg']),
+      _infoRow("Coat", raw['coat']),
+      _infoRow("Size", raw['size']),
+      _infoRow("Grading", raw['grading']),
+      _infoRow("2nd Colour", raw['second_colour']),
+      const SizedBox(height: 8),
+      Wrap(
+        spacing: 8,
+        runSpacing: 8,
+        children: [
+          _badge("PennHip", raw['pennhip']),
+          _badge("AVA", raw['ava']),
+          _badge("Hips", raw['hips']),
+          _badge("Elbows", raw['elbows']),
+          _badge("DNA", raw['dna']),
+        ],
+      ),
+    ],
+  );
+}
+
+Widget _buildIdentificationSection(Map dog) {
+  return _sectionCard(
+    title: "📋 Identification",
+    children: [
+      _infoRow("Microchip", dog['microchip']),
+      _infoRow("Pedigree", dog['pedigree_number']),
+    ],
+  );
+}
+
+
+Widget _infoRow(String label, dynamic value) {
+  if (value == null || value.toString().isEmpty) {
+    return const SizedBox();
+  }
+
+  return Padding(
+    padding: const EdgeInsets.symmetric(vertical: 4),
+    child: Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        // LABEL
+        SizedBox(
+          width: 120, // 👈 fixed width for alignment
+          child: Text(
+            label,
+            style: TextStyle(color: Colors.grey.shade600),
+          ),
+        ),
+
+        // VALUE (flexible)
+        Expanded(
+          child: Text(
+            value.toString(),
+            style: const TextStyle(fontWeight: FontWeight.w500),
+            softWrap: true,
+          ),
+        ),
+      ],
+    ),
+  );
+}
+
+Widget _badge(String label, dynamic value) {
+  if (value == null || value.toString().isEmpty) return const SizedBox();
+
+  return Container(
+    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+    decoration: BoxDecoration(
+      color: Colors.grey.shade100,
+      borderRadius: BorderRadius.circular(20),
+    ),
+    child: Text(
+      "$label: $value",
+      style: const TextStyle(fontSize: 12),
+    ),
+  );
+}
+
+///
+Widget _buildBreedingInfoSection(Map<String, dynamic> dog) {
+  final raw = dog['zooeasy_raw'] ?? {};
+
+  String getVal(String key) {
+    final v = raw[key];
+    if (v == null || v.toString().trim().isEmpty) return '-';
+    return v.toString();
+  }
+
+  return Card(
+    shape: RoundedRectangleBorder(
+      borderRadius: BorderRadius.circular(16),
+    ),
+    elevation: 1,
+    child: Padding(
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            'Breeding Info',
+            style: TextStyle(
+              fontSize: 18,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+          const SizedBox(height: 12),
+
+          _infoRow('Breed %', getVal('breed_percentage')),
+          _infoRow('Inbreeding', getVal('inbreeding_coefficient')),
+          _infoRow('Generations', getVal('complete_generations')),
+          _infoRow('ECG', getVal('ecg')),
+        ],
+      ),
+    ),
+  );
+}
+
+Widget _sectionCard({
+  required String title,
+  required List<Widget> children,
+}) {
+  return Container(
+    margin: const EdgeInsets.only(bottom: 16),
+    padding: const EdgeInsets.all(14),
+    decoration: BoxDecoration(
+      color: Colors.white,
+      borderRadius: BorderRadius.circular(16),
+      border: Border.all(color: Colors.grey.shade200),
+    ),
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          title,
+          style: const TextStyle(
+            fontSize: 16,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+        const SizedBox(height: 10),
+        ...children,
+      ],
+    ),
+  );
 }
