@@ -4,9 +4,13 @@ import '../../services/app_user.dart';
 
 final supabase = Supabase.instance.client;
 
-Future<void> showAddLogModal(BuildContext context, Map litter) async {
+Future<void> showAddLogModal(
+  BuildContext context,
+  Map litter, {
+  String initialCategory = 'mum feed',
+}) async {
   final noteController = TextEditingController();
-  String category = 'mum feed';
+  String category = initialCategory;
   DateTime selectedTime = DateTime.now();
 
   await showModalBottomSheet(
@@ -25,7 +29,12 @@ Future<void> showAddLogModal(BuildContext context, Map litter) async {
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                const Text("Add Entry"),
+                const Text(
+                  "Add Entry",
+                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600),
+                ),
+
+                const SizedBox(height: 12),
 
                 DropdownButton<String>(
                   value: category,
@@ -37,26 +46,14 @@ Future<void> showAddLogModal(BuildContext context, Map litter) async {
                     'medication',
                     'other'
                   ].map((c) {
-                    String label = c.split(' ')
+                    final label = c
+                        .split(' ')
                         .map((w) => w[0].toUpperCase() + w.substring(1))
                         .join(' ');
 
                     return DropdownMenuItem(
                       value: c,
-                      child: Row(
-                        children: [
-                          Container(
-                            width: 10,
-                            height: 10,
-                            margin: const EdgeInsets.only(right: 8),
-                            decoration: BoxDecoration(
-                              color: _getCategoryColor(c),
-                              borderRadius: BorderRadius.circular(2),
-                            ),
-                          ),
-                          Text(label),
-                        ],
-                      ),
+                      child: Text(label),
                     );
                   }).toList(),
                   onChanged: (val) {
@@ -66,31 +63,22 @@ Future<void> showAddLogModal(BuildContext context, Map litter) async {
                   },
                 ),
 
+                const SizedBox(height: 12),
+
                 TextField(
                   controller: noteController,
-                  decoration: const InputDecoration(labelText: 'Notes'),
+                  decoration: const InputDecoration(
+                    labelText: 'Notes',
+                    border: OutlineInputBorder(),
+                  ),
+                  maxLines: 3,
+                  autofocus: true,
                 ),
+
+                const SizedBox(height: 16),
 
                 ElevatedButton(
                   onPressed: () async {
-                    print('USER NAME: ${AppUser.name}');
-                    print('USER ID: ${AppUser.userId}');
-
-                    final user = supabase.auth.currentUser;
-
-                    if (user == null) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(content: Text('No user logged in')),
-                      );
-                      return;
-                    }
-
-                    final appUser = await supabase
-                        .from('app_users')
-                        .select('first_name')
-                        .eq('id', user.id)
-                        .single();
-
                     await supabase.from('whelping_logs').insert({
                       'litter_id': litter['id'],
                       'litter_full_code': litter['litter_full_code'],
@@ -99,16 +87,15 @@ Future<void> showAddLogModal(BuildContext context, Map litter) async {
                       'event_time': selectedTime.toIso8601String(),
                       'note': noteController.text,
                       'category': category,
-
-                      // 👇 THIS IS THE NEW PART
-                      'created_by': user.id,
-                      'created_by_name': appUser['first_name'] ?? 'User',
+                      'created_by_name': AppUser.name,
                     });
 
                     Navigator.pop(context);
                   },
                   child: const Text("Save"),
                 ),
+
+                const SizedBox(height: 20),
               ],
             ),
           );
@@ -116,18 +103,4 @@ Future<void> showAddLogModal(BuildContext context, Map litter) async {
       );
     },
   );
-}
-Color _getCategoryColor(String? category) {
-  switch (category) {
-    case 'mum feed':
-      return Colors.blue;
-    case 'pup feed':
-      return Colors.teal;
-    case 'toilet':
-      return Colors.brown;
-    case 'medication':
-      return Colors.red;
-    default:
-      return Colors.grey;
-  }
 }

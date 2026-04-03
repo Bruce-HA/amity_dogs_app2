@@ -71,7 +71,7 @@ class _DailiesPageState extends State<DailiesPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Dailies')),
+      appBar: AppBar(title: const Text('Daily')),
       body: loading
           ? const Center(child: CircularProgressIndicator())
           : ListView.builder(

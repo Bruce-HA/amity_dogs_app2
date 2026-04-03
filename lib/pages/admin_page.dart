@@ -6,6 +6,7 @@ import '../theme/amity_theme.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../login_page.dart';
 import '../services/app_user.dart';
+import 'admin/admin_data_tools_page.dart';
 
 class AdminPage extends StatelessWidget {
   const AdminPage({super.key});
@@ -125,6 +126,26 @@ class AdminPage extends StatelessWidget {
                 },
               ),
             ),
+
+            const SizedBox(height: 12),
+
+              Card(
+                child: ListTile(
+                  leading: const Icon(Icons.build), // 🔥 nice tools icon
+                  title: const Text('Data Tools'),
+                  subtitle: const Text('Merge people, fix breeders, clean duplicates'),
+                  trailing: const Icon(Icons.chevron_right),
+                  onTap: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => const AdminDataToolsPage(),
+                      ),
+                    );
+                  },
+                ),
+              ),
+
           ],
         ),
       ),

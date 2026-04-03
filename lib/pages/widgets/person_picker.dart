@@ -13,13 +13,15 @@ class PersonPicker extends StatelessWidget {
     required this.label,
     required this.selectedPerson,
     required this.onSelected,
-    this.useBusinessName = false, // 👈 add this
+    this.useBusinessName = false,
   });
-  //
+
+  /// 🔍 Highlight search matches
   Widget _highlightText(String text, String query) {
     if (query.isEmpty) return Text(text);
 
-    final matches = RegExp(query, caseSensitive: false).allMatches(text);
+    final matches =
+        RegExp(query, caseSensitive: false).allMatches(text);
 
     if (matches.isEmpty) return Text(text);
 
@@ -34,9 +36,7 @@ class PersonPicker extends StatelessWidget {
       spans.add(
         TextSpan(
           text: text.substring(match.start, match.end),
-          style: const TextStyle(
-            fontWeight: FontWeight.bold,
-          ),
+          style: const TextStyle(fontWeight: FontWeight.bold),
         ),
       );
 
@@ -54,19 +54,23 @@ class PersonPicker extends StatelessWidget {
       ),
     );
   }
-  //
+
   @override
   Widget build(BuildContext context) {
     String currentQuery = '';
+
     final controller = TextEditingController(
       text: selectedPerson != null
           ? (useBusinessName
               ? (selectedPerson!['business_name'] ?? '')
-              : "${selectedPerson!['first_name_1st']} ${selectedPerson!['last_name_1st']}")
+              : "${selectedPerson!['first_name_1st'] ?? ''} ${selectedPerson!['last_name_1st'] ?? ''}")
           : '',
     );
 
     return TypeAheadField<Map<String, dynamic>>(
+      hideOnEmpty: true,
+      debounceDuration: const Duration(milliseconds: 300),
+
       textFieldConfiguration: TextFieldConfiguration(
         controller: controller,
         decoration: InputDecoration(
@@ -74,11 +78,14 @@ class PersonPicker extends StatelessWidget {
           prefixIcon: Icon(
             useBusinessName ? Icons.home_work : Icons.person,
           ),
+          border: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(12),
+          ),
         ),
       ),
 
       suggestionsCallback: (pattern) async {
-        currentQuery = pattern; // 🔥 track query
+        currentQuery = pattern;
 
         if (pattern.isEmpty) return [];
 
@@ -86,7 +93,9 @@ class PersonPicker extends StatelessWidget {
             .from('people')
             .select()
             .or(
-              'first_name_1st.ilike.%$pattern%,last_name_1st.ilike.%$pattern%,business_name.ilike.%$pattern%',
+              'first_name_1st.ilike.%$pattern%,'
+              'last_name_1st.ilike.%$pattern%,'
+              'business_name.ilike.%$pattern%',
             )
             .limit(10);
 
@@ -94,59 +103,24 @@ class PersonPicker extends StatelessWidget {
       },
 
       itemBuilder: (context, person) {
-        final query = currentQuery;
-
         final business = person['business_name'] ?? '';
         final name =
-            "${person['first_name_1st']} ${person['last_name_1st']}";
-        final phone = person['phone_1st'];
+            "${person['first_name_1st'] ?? ''} ${person['last_name_1st'] ?? ''}";
 
-        return Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-          child: ListTile(
-            contentPadding:
-                const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-
-            leading: CircleAvatar(
-              backgroundColor:
-                  Theme.of(context).colorScheme.primary.withOpacity(0.1),
-              child: Icon(
-                useBusinessName ? Icons.home_work : Icons.person,
-                color: Theme.of(context).colorScheme.primary,
-              ),
-            ),
-
-            title: useBusinessName
-                ? _highlightText(
-                    business.isNotEmpty ? business : name, query)
-                : _highlightText(name, query),
-
-            subtitle: useBusinessName
-                ? Text(
-                    name,
-                    style: TextStyle(color: Colors.grey.shade600),
-                  )
-                : (phone != null
-                    ? Text(
-                        phone,
-                        style: TextStyle(color: Colors.grey.shade600),
-                      )
-                    : null),
+        return ListTile(
+          title: Text(
+            useBusinessName
+                ? (business.isNotEmpty ? business : name)
+                : name,
           ),
+          subtitle: useBusinessName ? Text(name) : null,
         );
       },
 
       onSuggestionSelected: (person) {
+        print("SELECTED PERSON: ${person['people_id']}"); // 👈 DEBUG
+        FocusScope.of(context).unfocus();
         onSelected(person);
-      },
-
-      noItemsFoundBuilder: (context) {
-        return ListTile(
-          title: const Text("➕ Add new person"),
-          onTap: () {
-            // 👉 Hook your create person flow here
-          },
-        );
       },
     );
   }
