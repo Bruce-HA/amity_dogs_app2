@@ -73,6 +73,24 @@ Future<void> showAddLogModal(BuildContext context, Map litter) async {
 
                 ElevatedButton(
                   onPressed: () async {
+                    print('USER NAME: ${AppUser.name}');
+                    print('USER ID: ${AppUser.userId}');
+
+                    final user = supabase.auth.currentUser;
+
+                    if (user == null) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(content: Text('No user logged in')),
+                      );
+                      return;
+                    }
+
+                    final appUser = await supabase
+                        .from('app_users')
+                        .select('first_name')
+                        .eq('id', user.id)
+                        .single();
+
                     await supabase.from('whelping_logs').insert({
                       'litter_id': litter['id'],
                       'litter_full_code': litter['litter_full_code'],
@@ -81,6 +99,10 @@ Future<void> showAddLogModal(BuildContext context, Map litter) async {
                       'event_time': selectedTime.toIso8601String(),
                       'note': noteController.text,
                       'category': category,
+
+                      // 👇 THIS IS THE NEW PART
+                      'created_by': user.id,
+                      'created_by_name': appUser['first_name'] ?? 'User',
                     });
 
                     Navigator.pop(context);

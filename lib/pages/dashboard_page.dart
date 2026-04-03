@@ -32,7 +32,7 @@ class DashboardPage extends StatelessWidget {
           dashboardTile(context, Icons.pets, 'Dogs', const DogsPage()),
           dashboardTile(context, Icons.people, 'People', const PeoplePage()),
           dashboardTile(context, Icons.child_care, 'Litters', const LittersPage()),
-          dashboardTile(context, Icons.event_note, 'Dailies', DailiesPage()),
+          dashboardTile(context, Icons.event_note, 'Daily', DailiesPage()),
           dashboardTile(context, Icons.calendar_month, 'Calendar', const CalendarPage()),
           dashboardTile(context, Icons.directions_car, 'Vehicle Log', const VehicleLogPage()),
           dashboardTile(context, Icons.bar_chart, 'Reports', const ReportsPage()),

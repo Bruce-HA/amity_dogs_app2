@@ -91,6 +91,40 @@ class AdminPage extends StatelessWidget {
                 },
               ),
             ),
+            const SizedBox(height: 12),
+
+            Card(
+              child: ListTile(
+                leading: const Icon(Icons.verified_user),
+                title: const Text('Test My Roles'),
+                subtitle: const Text('Check current user permissions'),
+                trailing: const Icon(Icons.chevron_right),
+                onTap: () async {
+                  await AppUser.load();
+
+                  showDialog(
+                    context: context,
+                    builder: (_) => AlertDialog(
+                      title: const Text('My Roles'),
+                      content: Text(
+                        '''
+                  Admin: ${AppUser.isAdmin}
+                  Breeder: ${AppUser.isBreeder}
+                  Helper: ${AppUser.isHelper}
+                  Driver: ${AppUser.isDriver}
+                  ''',
+                      ),
+                      actions: [
+                        TextButton(
+                          onPressed: () => Navigator.pop(context),
+                          child: const Text('OK'),
+                        )
+                      ],
+                    ),
+                  );
+                },
+              ),
+            ),
           ],
         ),
       ),

@@ -3,9 +3,13 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 class AppUser {
   static final supabase = Supabase.instance.client;
 
-  static String name = '';
   static String userId = '';
+  static String name = '';
+
   static bool isAdmin = false;
+  static bool isBreeder = false;
+  static bool isHelper = false;
+  static bool isDriver = false;
 
   static Future<void> load() async {
     final user = supabase.auth.currentUser;
@@ -15,12 +19,18 @@ class AppUser {
     userId = user.id;
 
     final data = await supabase
-        .from('profiles')
+        .from('app_users')
         .select()
-        .eq('user_id', user.id)
+        .eq('id', user.id)
         .single();
 
-    name = data['name'] ?? '';
+    // 👇 THIS IS THE IMPORTANT PART
+    name =
+        '${data['first_name'] ?? ''} ${data['last_name'] ?? ''}'.trim();
+
     isAdmin = data['is_admin'] ?? false;
+    isBreeder = data['is_breeder'] ?? false;
+    isHelper = data['is_helper'] ?? false;
+    isDriver = data['is_driver'] ?? false;
   }
 }

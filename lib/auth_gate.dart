@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
-
+import '../services/app_user.dart';
 import 'pages/dashboard_page.dart';
 import 'login_page.dart';
 import 'pages/reset_password_page.dart';
@@ -50,6 +50,18 @@ class _AuthGateState extends State<AuthGate> {
         return const LoginPage();
       }
 
-      return const DashboardPage();
+      // 👇 LOAD USER BEFORE DASHBOARD
+      return FutureBuilder(
+        future: AppUser.load(),
+        builder: (context, snapshot) {
+          if (snapshot.connectionState != ConnectionState.done) {
+            return const Scaffold(
+              body: Center(child: CircularProgressIndicator()),
+            );
+          }
+
+          return const DashboardPage();
+        },
+      );
     }
 }
