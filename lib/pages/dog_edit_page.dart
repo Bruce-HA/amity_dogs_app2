@@ -6,7 +6,7 @@ import 'widgets/dog_ala_picker.dart';
 class DogEditPage extends StatefulWidget {
   final Map<String, dynamic> dog;
 
-  DogEditPage({super.key, required this.dog});
+  const DogEditPage({super.key, required this.dog});
 
   @override
   State<DogEditPage> createState() => _DogEditPageState();
@@ -26,7 +26,7 @@ class _DogEditPageState extends State<DogEditPage> {
   Map<String, dynamic>? breeder;
   Map<String, dynamic>? owner;
   Map<String, dynamic>? dam;
-  Map<String, dynamic>? sire; 
+  Map<String, dynamic>? sire;
 
   final List<String> statuses = [
     'Pending',
@@ -52,53 +52,95 @@ class _DogEditPageState extends State<DogEditPage> {
     super.initState();
 
     nameController =
-        TextEditingController(text: widget.dog['dog_name']);
+        TextEditingController(text: widget.dog['dog_name'] ?? '');
     alaController =
-        TextEditingController(text: widget.dog['dog_ala']);
+        TextEditingController(text: widget.dog['dog_ala'] ?? '');
     microchipController =
-        TextEditingController(text: widget.dog['microchip']);
+        TextEditingController(text: widget.dog['microchip'] ?? '');
     dobController =
-        TextEditingController(text: widget.dog['dob']);
-
-    dam = widget.dog['dam'];
-
-    sire = widget.dog['sire'];    
-
+        TextEditingController(text: widget.dog['dob'] ?? '');
     spayDueController =
         TextEditingController(text: widget.dog['spay_due'] ?? '');
 
     status = widget.dog['status'];
     desexed = widget.dog['desexed'] ?? 'Unknown';
 
-     // Existing dog data
-    final dogData = widget.dog;
-
-    // 🔥 Initialize breeder & owner
-    breeder = dogData['breeder'];
-    owner = dogData['owner'];
+    // 🔥 LOAD RELATIONS
+    loadRelations();
   }
 
   Future<void> save() async {
     await supabase.from('dogs').update({
-      'dam_id': dam != null ? dam!['id'] : null,
-      'sire_id': sire != null ? sire!['id'] : null,
+      'mother_id': dam != null ? dam!['id'] : null,
+      'father_id': sire != null ? sire!['id'] : null,
       'dog_name': nameController.text,
       'dog_ala': alaController.text,
       'microchip': microchipController.text,
       'dob': dobController.text,
       'status': status,
       'desexed': desexed,
-      'spay_due': spayDueController.text.isEmpty
-          ? null
-          : spayDueController.text,
-      // 🔥 ADD THESE
-    'breeder_person_id': breeder != null ? breeder!['people_id'] : null,
-    'owner_person_id': owner != null ? owner!['people_id'] : null,
+      'spay_due':
+          spayDueController.text.isEmpty ? null : spayDueController.text,
+      'breeder_person_id':
+          breeder != null ? breeder!['people_id'] : null,
+      'owner_person_id':
+          owner != null ? owner!['people_id'] : null,
     }).eq('id', widget.dog['id']);
 
-    Navigator.pop(context);
-  }
+    if (!mounted) return;
 
+    // ✅ SHOW CONFIRMATION HERE
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Dog saved')),
+    );
+
+    // small delay so user actually sees it
+    await Future.delayed(const Duration(milliseconds: 300));
+
+    Navigator.of(context).pop(true);
+  }
+//
+  Future<void> loadRelations() async {
+    final dog = widget.dog;
+
+    // 🐶 Load parents
+    if (dog['mother_id'] != null) {
+      dam = await supabase
+          .from('dogs')
+          .select('id, dog_name, dog_ala')
+          .eq('id', dog['mother_id'])
+          .maybeSingle();
+    }
+
+    if (dog['father_id'] != null) {
+      sire = await supabase
+          .from('dogs')
+          .select('id, dog_name, dog_ala')
+          .eq('id', dog['father_id'])
+          .maybeSingle();
+    }
+
+    // 👤 Load breeder
+    if (dog['breeder_person_id'] != null) {
+      breeder = await supabase
+          .from('people')
+          .select()
+          .eq('people_id', dog['breeder_person_id'])
+          .maybeSingle();
+    }
+
+    // 👤 Load owner
+    if (dog['owner_person_id'] != null) {
+      owner = await supabase
+          .from('people')
+          .select()
+          .eq('people_id', dog['owner_person_id'])
+          .maybeSingle();
+    }
+
+    setState(() {});
+  }
+///
   Future<void> pickDate(TextEditingController controller) async {
     DateTime initialDate = DateTime.now();
 
@@ -119,6 +161,14 @@ class _DogEditPageState extends State<DogEditPage> {
       controller.text =
           picked.toIso8601String().split('T').first;
     }
+  }
+
+  InputDecoration _dec(String label, String? hint) {
+    return InputDecoration(
+      labelText: label,
+      hintText: hint ?? '',
+      border: const OutlineInputBorder(),
+    );
   }
 
   @override
@@ -150,25 +200,31 @@ class _DogEditPageState extends State<DogEditPage> {
             TextField(
               controller: nameController,
               decoration:
-                  const InputDecoration(labelText: "Dog Name"),
+                  _dec("Dog Name", widget.dog['dog_name']),
             ),
+
+            const SizedBox(height: 12),
 
             TextField(
               controller: alaController,
-              decoration: const InputDecoration(labelText: "ALA"),
+              decoration:
+                  _dec("ALA", widget.dog['dog_ala']),
             ),
+
+            const SizedBox(height: 12),
 
             TextField(
               controller: microchipController,
               decoration:
-                  const InputDecoration(labelText: "Microchip"),
+                  _dec("Microchip", widget.dog['microchip']),
             ),
+
+            const SizedBox(height: 12),
 
             TextField(
               controller: dobController,
               readOnly: true,
-              decoration:
-                  const InputDecoration(labelText: "DOB"),
+              decoration: _dec("DOB", widget.dog['dob']),
               onTap: () => pickDate(dobController),
             ),
 
@@ -177,14 +233,14 @@ class _DogEditPageState extends State<DogEditPage> {
             DropdownButtonFormField<String>(
               value: status,
               items: statuses
-                  .map((s) => DropdownMenuItem(
-                        value: s,
-                        child: Text(s),
-                      ))
+                  .map((s) =>
+                      DropdownMenuItem(value: s, child: Text(s)))
                   .toList(),
               onChanged: (v) => setState(() => status = v),
-              decoration:
-                  const InputDecoration(labelText: "Status"),
+              decoration: const InputDecoration(
+                labelText: "Status",
+                border: OutlineInputBorder(),
+              ),
             ),
 
             const SizedBox(height: 12),
@@ -192,14 +248,14 @@ class _DogEditPageState extends State<DogEditPage> {
             DropdownButtonFormField<String>(
               value: desexed,
               items: desexedOptions
-                  .map((d) => DropdownMenuItem(
-                        value: d,
-                        child: Text(d),
-                      ))
+                  .map((d) =>
+                      DropdownMenuItem(value: d, child: Text(d)))
                   .toList(),
               onChanged: (v) => setState(() => desexed = v),
-              decoration:
-                  const InputDecoration(labelText: "Desexed"),
+              decoration: const InputDecoration(
+                labelText: "Desexed",
+                border: OutlineInputBorder(),
+              ),
             ),
 
             const SizedBox(height: 12),
@@ -207,11 +263,11 @@ class _DogEditPageState extends State<DogEditPage> {
             TextField(
               controller: spayDueController,
               readOnly: true,
-              decoration: const InputDecoration(
-                  labelText: "Spay Due Date"),
+              decoration:
+                  _dec("Spay Due Date", widget.dog['spay_due']),
               onTap: () => pickDate(spayDueController),
             ),
-///
+
             const SizedBox(height: 16),
 
             DogAlaPicker(
@@ -231,13 +287,12 @@ class _DogEditPageState extends State<DogEditPage> {
                 setState(() => sire = dog);
               },
             ),
-///
-///
+
             const SizedBox(height: 16),
 
             PersonPicker(
               label: 'Breeder',
-              useBusinessName: true, // 🔥 THIS enables business_name
+              useBusinessName: true,
               selectedPerson: breeder,
               onSelected: (person) {
                 setState(() => breeder = person);
@@ -253,7 +308,7 @@ class _DogEditPageState extends State<DogEditPage> {
                 setState(() => owner = person);
               },
             ),
-///
+
             const SizedBox(height: 30),
 
             ElevatedButton.icon(

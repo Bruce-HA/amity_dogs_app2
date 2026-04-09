@@ -161,37 +161,43 @@ class _DnaTabState extends State<DnaTab> {
 
   @override
   Widget build(BuildContext context) {
-    print("BUILD DNA TAB — hasDna = ${hasDna}");
+    print("BUILD DNA TAB — hasDna = $hasDna");
 
-    if (isLoading) {
-      return const Center(child: CircularProgressIndicator());
-    }
-
-    if (!hasDna) {
-      return Center(
-        child: ElevatedButton(
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('DNA Summary'),
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back),
           onPressed: () {
-            uploadDnaSummary();
+            Navigator.pop(context);
           },
-          child: const Text('Upload DNA Summary'),
         ),
-      );
-    }
+      ),
 
-    return ListView.builder(
-      padding: const EdgeInsets.all(16),
-      itemCount: loci.length,
-      itemBuilder: (context, index) {
-        final locus = loci[index];
-        return Card(
-          child: ListTile(
-            title: Text(locus['locus'] ?? ''),
-            subtitle: Text(
-              '${locus['allele_1'] ?? ''} / ${locus['allele_2'] ?? ''}',
-            ),
-          ),
-        );
-      },
+      body: isLoading
+          ? const Center(child: CircularProgressIndicator())
+          : hasDna
+              ? ListView.builder(
+                  padding: const EdgeInsets.all(16),
+                  itemCount: loci.length,
+                  itemBuilder: (context, index) {
+                    final locus = loci[index];
+                    return Card(
+                      child: ListTile(
+                        title: Text(locus['locus'] ?? ''),
+                        subtitle: Text(
+                          '${locus['allele_1'] ?? ''} / ${locus['allele_2'] ?? ''}',
+                        ),
+                      ),
+                    );
+                  },
+                )
+              : Center(
+                  child: ElevatedButton(
+                    onPressed: uploadDnaSummary,
+                    child: const Text('⬆️ Upload DNA Summary'),
+                  ),
+                ),
     );
   }
 }

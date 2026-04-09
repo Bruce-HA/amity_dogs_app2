@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
-import '../../tabs/dna_tab.dart'; // adjust path if needed
+import '../../tabs/dna_tab.dart'; 
+import '/services/breeding_plan_service.dart'; //djust path if needed
 
 class BreedingPlansPage extends StatelessWidget {
   final String dogId;
@@ -42,6 +43,19 @@ class BreedingPlansPage extends StatelessWidget {
               style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
             ),
 
+            // test button
+            ElevatedButton(
+              onPressed: () async {
+                final result = await BreedingPlanService.createBreedingPlan(
+                  femaleDogAla: '0174-024-04', // real female
+                  maleDogAla: '0174-013-06',   // real male
+                  breedingPlanCode: 'TEST-B01',
+                );
+
+                print('Breeding Plan Created: $result');
+              },
+              child: const Text('Test Breeding Plan'),
+            ),
             const SizedBox(height: 12),
 
             SizedBox(

@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../services/breeding_plan_service.dart';
@@ -15,120 +16,92 @@ class AddBreedingPlanPage extends StatefulWidget {
 }
 
 class _AddBreedingPlanPageState extends State<AddBreedingPlanPage> {
-  final _client = Supabase.instance.client;
-  final _service = BreedingPlanService();
+  final SupabaseClient _client = Supabase.instance.client;
 
-  final _searchController = TextEditingController();
+  final TextEditingController _searchController = TextEditingController();
+  Timer? _debounce;
 
-  List<Map<String, dynamic>> _results = [];
-  Map<String, dynamic>? _selectedMale;
+  List<Map<String, dynamic>> _dogs = [];
+  Map<String, dynamic>? _selectedDog;
+
   bool _loading = false;
 
-  Future<void> _searchMales(String query) async {
-    final response = await _client
-        .from('dogs')
-        .select()
-        .eq('sex', 'male')
-        .neq('dog_status', 'Pet')
-        .neq('dog_status', 'Deceased')
-        .or(
-          'dog_name.ilike.%$query%,'
-          'dog_ala.ilike.%$query%,'
-          'microchip.ilike.%$query%',
-        )
-        .order('dog_name');
+  @override
+  void initState() {
+    super.initState();
+    print("🔥 ADD BREEDING PAGE LOADED 🔥");
+    _fetchDogs();
+  }
 
-    setState(() {
-      _results = List<Map<String, dynamic>>.from(response);
+  // 🔍 SEARCH HANDLER
+  void _onSearchChanged(String value) {
+    if (_debounce?.isActive ?? false) _debounce!.cancel();
+
+    _debounce = Timer(const Duration(milliseconds: 300), () {
+      _fetchDogs();
     });
   }
 
+  // 📡 FETCH DOGS (same as DogsPage)
+  Future<void> _fetchDogs() async {
+    final response = await _client
+        .from('dogs_list_view_with_hero')
+        .select('dog_name, dog_ala')
+        .order('dog_name');
+
+    print("TOTAL DOGS: ${response.length}");
+
+    final turkish = response.where(
+      (d) => (d['dog_name'] ?? '').toString().contains('Turkish'),
+    );
+
+    print("TURKISH FOUND: $turkish");
+
+    setState(() {
+      _dogs = List<Map<String, dynamic>>.from(response);
+    });
+  }
+
+  // 🧬 CREATE PLAN
   Future<void> _createPlan() async {
-    if (_selectedMale == null) return;
+    if (_selectedDog == null) return;
+
+    final maleAla = _selectedDog?['dog_ala'] as String?;
+
+    if (maleAla == null) return;
 
     setState(() => _loading = true);
 
-    await _service.createBreedingPlan(
-      femaleAla: widget.femaleAla,
-      maleAla: _selectedMale!['dog_ala'],
+    await BreedingPlanService.createBreedingPlan(
+      femaleDogAla: widget.femaleAla,
+      maleDogAla: maleAla,
+      breedingPlanCode: 'TEMP-B01',
     );
 
     setState(() => _loading = false);
 
-    if (mounted) {
-      Navigator.pop(context, true);
-    }
+    if (mounted) Navigator.pop(context, true);
   }
 
   @override
+  void dispose() {
+    _searchController.dispose();
+    _debounce?.cancel();
+    super.dispose();
+  }
+
+  // 🧱 UI
+ 
+  @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Add Breeding Plan'),
-      ),
-      body: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          children: [
-            TextField(
-              controller: _searchController,
-              decoration: const InputDecoration(
-                labelText: 'Search Male (Name, ALA, Microchip)',
-                border: OutlineInputBorder(),
-              ),
-              onChanged: (value) {
-                if (value.length >= 2) {
-                  _searchMales(value);
-                } else {
-                  setState(() => _results = []);
-                }
-              },
-            ),
-            const SizedBox(height: 16),
-            Expanded(
-              child: _results.isEmpty
-                  ? const Center(
-                      child: Text('Search to find a male.'),
-                    )
-                  : ListView.builder(
-                      itemCount: _results.length,
-                      itemBuilder: (context, index) {
-                        final dog = _results[index];
-                        final isSelected =
-                            _selectedMale?['dog_ala'] == dog['dog_ala'];
-
-                        return Card(
-                          child: ListTile(
-                            title: Text(dog['dog_name'] ?? ''),
-                            subtitle: Text(dog['dog_ala'] ?? ''),
-                            trailing: isSelected
-                                ? const Icon(Icons.check_circle,
-                                    color: Colors.green)
-                                : null,
-                            onTap: () {
-                              setState(() {
-                                _selectedMale = dog;
-                              });
-                            },
-                          ),
-                        );
-                      },
-                    ),
-            ),
-            const SizedBox(height: 16),
-            SizedBox(
-              width: double.infinity,
-              child: ElevatedButton(
-                onPressed:
-                    _selectedMale == null || _loading ? null : _createPlan,
-                child: _loading
-                    ? const CircularProgressIndicator()
-                    : const Text('Create Breeding Plan'),
-              ),
-            ),
-          ],
+      appBar: AppBar(title: const Text('TEST PAGE')),
+      body: const Center(
+        child: Text(
+          '🔥 IF YOU SEE THIS, THIS PAGE IS RUNNING 🔥',
+          style: TextStyle(fontSize: 20),
         ),
       ),
     );
-  }
+}
 }

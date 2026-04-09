@@ -10,6 +10,7 @@ import 'dog_edit_page.dart';
 import 'people_detail_page.dart';
 import 'widgets/dog_card.dart';
 import '../ui/spay_due_label.dart';
+import 'widgets/app_dog_image.dart';
 
 
 class DogDetailsPage extends StatefulWidget {
@@ -221,13 +222,17 @@ class _DogDetailsPageState extends State<DogDetailsPage> {
     );
   }
 
-  Widget _placeholderHero() {
-    return Container(
+ Widget _placeholderHero() {
+  return ClipRRect(
+    borderRadius: BorderRadius.zero,
+    child: Image.asset(
+      'assets/images/no_photo.png',
       height: 220,
-      color: Colors.grey.shade300,
-      child: const Icon(Icons.pets, size: 60),
-    );
-  }
+      width: double.infinity,
+      fit: BoxFit.cover,
+    ),
+  );
+}
 
   Widget _buildOverviewContent() {
     final d = dog;
@@ -473,14 +478,17 @@ class _DogDetailsPageState extends State<DogDetailsPage> {
           IconButton(
             icon: const Icon(Icons.edit, size: 20),
             onPressed: () async {
-              await Navigator.push(
+              final updated = await Navigator.push(
                 context,
                 MaterialPageRoute(
                   builder: (_) => DogEditPage(dog: dog!),
                 ),
               );
 
-              await loadDog();
+              if (updated == true) {
+                await loadDog();
+                Navigator.pop(context, true); // 🔥 bubble up
+              }
             },
           ),
         ],

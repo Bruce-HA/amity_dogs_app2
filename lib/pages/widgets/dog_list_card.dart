@@ -93,7 +93,13 @@ class DogListCard extends StatelessWidget {
                       memCacheWidth: 600,
                       fadeInDuration: const Duration(milliseconds: 150),
                       filterQuality: FilterQuality.low,
-                      placeholder: (context, url) => _placeholder(),
+                      placeholder: (context, url) => Container(
+                        height: 180,
+                        color: Colors.grey.shade200,
+                        child: const Center(
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        ),
+                      ),
                       errorWidget: (context, url, error) => _placeholder(),
                     ),
                   )
@@ -184,8 +190,19 @@ class DogListCard extends StatelessWidget {
   Widget _placeholder() {
     return Container(
       height: 180,
-      color: Colors.grey.shade200,
-      child: const Icon(Icons.pets, size: 40),
+      decoration: BoxDecoration(
+        color: Colors.grey.shade200,
+      ),
+      child: ClipRRect(
+        borderRadius: const BorderRadius.vertical(
+          top: Radius.circular(18),
+        ),
+        child: Image.asset(
+          'assets/images/no_photo.png',
+          fit: BoxFit.cover,
+          width: double.infinity,
+        ),
+      ),
     );
   }
 }

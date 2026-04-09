@@ -7,6 +7,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../login_page.dart';
 import '../services/app_user.dart';
 import 'admin/admin_data_tools_page.dart';
+import '../services/app_settings.dart';
 
 class AdminPage extends StatelessWidget {
   const AdminPage({super.key});
@@ -93,7 +94,37 @@ class AdminPage extends StatelessWidget {
               ),
             ),
             const SizedBox(height: 12),
-
+      // toggle the test mode
+            Card(
+              elevation: 2,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: SwitchListTile(
+                secondary: const Icon(Icons.code),
+                title: const Text('Developer Mode'),
+                subtitle: const Text('Show internal page names'),
+                value: AppSettings.showPageHints,
+                onChanged: (v) {
+                  AppSettings.showPageHints = v;
+                  (context as Element).markNeedsBuild();
+                },
+              ),
+),
+      ///
+            Card(
+              child: SwitchListTile(
+                secondary: const Icon(Icons.visibility),
+                title: const Text('Show Page Hints'),
+                subtitle: const Text('Display internal page names'),
+                value: AppSettings.showPageHints,
+                onChanged: (v) {
+                  AppSettings.showPageHints = v;
+                  (context as Element).markNeedsBuild();
+                },
+              ),
+            ),
+      ///
             Card(
               child: ListTile(
                 leading: const Icon(Icons.verified_user),
@@ -128,7 +159,8 @@ class AdminPage extends StatelessWidget {
             ),
 
             const SizedBox(height: 12),
-
+              // test toggle
+              
               Card(
                 child: ListTile(
                   leading: const Icon(Icons.build), // 🔥 nice tools icon

@@ -60,9 +60,10 @@ class _LittersPageState extends State<LittersPage> {
       // 🔥 Dashboard → all litters
       data = await supabase
           .from('litters')
-          .select('id, litter_name, whelp_date, dam_ala, sire_ala, created_at')
-          .order('whelp_date', ascending: false);
-    }
+          .select('id, litter_name, ala_litter_number, whelp_date, dam_ala, sire_ala, created_at')
+          .not('ala_litter_number', 'is', null) // ✅ remove nulls
+          .order('ala_litter_number', ascending: false); // ✅ newest ALA first
+          }
 
     // 🔥 Sort newest first
     data.sort((a, b) {

@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_typeahead/flutter_typeahead.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
-class PersonPicker extends StatelessWidget {
+class PersonPicker extends StatefulWidget {
   final String label;
   final Map<String, dynamic>? selectedPerson;
   final Function(Map<String, dynamic>) onSelected;
@@ -16,67 +16,50 @@ class PersonPicker extends StatelessWidget {
     this.useBusinessName = false,
   });
 
-  /// 🔍 Highlight search matches
-  Widget _highlightText(String text, String query) {
-    if (query.isEmpty) return Text(text);
+  @override
+  State<PersonPicker> createState() => _PersonPickerState();
+}
 
-    final matches =
-        RegExp(query, caseSensitive: false).allMatches(text);
+class _PersonPickerState extends State<PersonPicker> {
+  late TextEditingController controller;
 
-    if (matches.isEmpty) return Text(text);
+  @override
+  void initState() {
+    super.initState();
+    controller = TextEditingController();
+    _setInitialText();
+  }
 
-    List<TextSpan> spans = [];
-    int start = 0;
+  @override
+  void didUpdateWidget(covariant PersonPicker oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    _setInitialText();
+  }
 
-    for (final match in matches) {
-      if (match.start > start) {
-        spans.add(TextSpan(text: text.substring(start, match.start)));
-      }
-
-      spans.add(
-        TextSpan(
-          text: text.substring(match.start, match.end),
-          style: const TextStyle(fontWeight: FontWeight.bold),
-        ),
-      );
-
-      start = match.end;
+  void _setInitialText() {
+    if (widget.selectedPerson == null) {
+      controller.text = '';
+      return;
     }
 
-    if (start < text.length) {
-      spans.add(TextSpan(text: text.substring(start)));
-    }
+    final p = widget.selectedPerson!;
 
-    return RichText(
-      text: TextSpan(
-        style: const TextStyle(color: Colors.black),
-        children: spans,
-      ),
-    );
+    controller.text = widget.useBusinessName
+        ? (p['business_name'] ?? '')
+        : "${p['first_name_1st'] ?? ''} ${p['last_name_1st'] ?? ''}";
   }
 
   @override
   Widget build(BuildContext context) {
-    String currentQuery = '';
-
-    final controller = TextEditingController(
-      text: selectedPerson != null
-          ? (useBusinessName
-              ? (selectedPerson!['business_name'] ?? '')
-              : "${selectedPerson!['first_name_1st'] ?? ''} ${selectedPerson!['last_name_1st'] ?? ''}")
-          : '',
-    );
-
     return TypeAheadField<Map<String, dynamic>>(
-      hideOnEmpty: true,
       debounceDuration: const Duration(milliseconds: 300),
 
       textFieldConfiguration: TextFieldConfiguration(
         controller: controller,
         decoration: InputDecoration(
-          labelText: label,
+          labelText: widget.label,
           prefixIcon: Icon(
-            useBusinessName ? Icons.home_work : Icons.person,
+            widget.useBusinessName ? Icons.home_work : Icons.person,
           ),
           border: OutlineInputBorder(
             borderRadius: BorderRadius.circular(12),
@@ -85,11 +68,23 @@ class PersonPicker extends StatelessWidget {
       ),
 
       suggestionsCallback: (pattern) async {
-        currentQuery = pattern;
-
         if (pattern.isEmpty) return [];
 
-        final response = await Supabase.instance.client
+        final client = Supabase.instance.client;
+
+        /// 🔥 If looks like UUID → search directly
+        if (pattern.length > 20 && pattern.contains('-')) {
+          final response = await client
+              .from('people')
+              .select()
+              .eq('people_id', pattern)
+              .limit(1);
+
+          return List<Map<String, dynamic>>.from(response);
+        }
+
+        /// 🔍 Otherwise normal search
+        final response = await client
             .from('people')
             .select()
             .or(
@@ -109,18 +104,20 @@ class PersonPicker extends StatelessWidget {
 
         return ListTile(
           title: Text(
-            useBusinessName
+            widget.useBusinessName
                 ? (business.isNotEmpty ? business : name)
                 : name,
           ),
-          subtitle: useBusinessName ? Text(name) : null,
+          subtitle: Text(person['people_id']), // 👈 ADD THIS
         );
       },
 
       onSuggestionSelected: (person) {
-        print("SELECTED PERSON: ${person['people_id']}"); // 👈 DEBUG
-        FocusScope.of(context).unfocus();
-        onSelected(person);
+        controller.text = widget.useBusinessName
+            ? (person['business_name'] ?? '')
+            : "${person['first_name_1st'] ?? ''} ${person['last_name_1st'] ?? ''}";
+
+        widget.onSelected(person);
       },
     );
   }

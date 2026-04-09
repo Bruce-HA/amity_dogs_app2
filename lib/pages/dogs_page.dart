@@ -5,6 +5,7 @@ import '../pages/dog_details_page.dart';
 import 'dog_create_page.dart';
 import 'widgets/dog_list_card.dart';
 import '../ui/spacing.dart';
+import 'widgets/app_dog_image.dart';
 
 class DogsPage extends StatefulWidget {
   const DogsPage({super.key});
@@ -29,7 +30,7 @@ class _DogsPageState extends State<DogsPage> {
   bool _initialLoad = true;
 
   bool _myDogsOnly = false;
-  bool _spayPendingOnly = true;
+  bool _spayPendingOnly = false;
   String? _selectedStatus;
 
   String? _myPeopleId;
@@ -47,11 +48,13 @@ class _DogsPageState extends State<DogsPage> {
     'Sold',
   ];
 
-  @override
+  // ONLY showing CHANGED / FIXED parts to keep this clean
+
+@override
   void initState() {
     super.initState();
     _loadCurrentUserPeopleId();
-    _scrollController.addListener(_scrollListener);
+    _scrollController.addListener(_scrollListener); // ✅ FIX
   }
 
   void _scrollListener() {
@@ -73,8 +76,10 @@ class _DogsPageState extends State<DogsPage> {
         .eq('user_id', user.id)
         .single();
 
-    _myPeopleId = profile['people_id'];
-    _fetchDogs(reset: true);
+    setState(() {
+      _myPeopleId = profile['people_id'];
+      _initialLoad = false; // ✅ FIX
+    });
   }
 
   void _onSearchChanged(String value) {
@@ -85,7 +90,8 @@ class _DogsPageState extends State<DogsPage> {
   }
 
   Future<void> _fetchDogs({bool reset = false}) async {
-    if (_isLoading || _myPeopleId == null) return;
+    if (_isLoading) return;
+    if (_myPeopleId == null) return;
 
     setState(() {
       _isLoading = true;
@@ -93,7 +99,6 @@ class _DogsPageState extends State<DogsPage> {
         _offset = 0;
         _hasMore = true;
         _dogs.clear();
-        _initialLoad = true;
       }
     });
 
@@ -101,43 +106,30 @@ class _DogsPageState extends State<DogsPage> {
       final search = _searchController.text.trim();
 
       var query = _supabase
-        .from('dogs_list_view_with_hero')
-        .select('''
-          id,
-          dog_name,
-          dog_ala,
-          sex,
-          microchip,
-          status,
-          spay_due,
-          my_dogs,
-          dob,
+          .from('dogs_list_view_with_hero')
+          .select('''
+            id,
+            dog_name,
+            dog_ala,
+            sex,
+            microchip,
+            status,
+            spay_due,
+            my_dogs,
+            dob,
+            hero
+          ''');
 
-          hero,
-
-          owner:people!owner_person_id (
-            people_id,
-            first_name_1st,
-            last_name_1st,
-            phone_1st
-          ),
-          breeder:people!breeder_person_id (
-            people_id,
-            first_name_1st,
-            last_name_1st,
-            phone_1st
-          )
-         '''); 
       if (_myDogsOnly) {
         query = query.eq('my_dogs', true);
       }
 
-      if (_selectedStatus != null) {
-        query = query.eq('status', _selectedStatus!);
-      }
-
       if (_spayPendingOnly) {
         query = query.not('spay_due', 'is', null);
+      }
+
+      if (_selectedStatus != null) {
+        query = query.eq('status', _selectedStatus!);
       }
 
       if (search.isNotEmpty) {
@@ -148,14 +140,12 @@ class _DogsPageState extends State<DogsPage> {
       }
 
       final response = await query
-        .order('spay_due', ascending: true, nullsFirst: false)
-        .order('dog_ala')
-        .range(_offset, _offset + _limit - 1);
+          .order('dob', ascending: false) // ✅ youngest first
+          .range(_offset, _offset + _limit - 1);
 
       setState(() {
         _dogs = List<Map<String, dynamic>>.from(response);
         _isLoading = false;
-        _initialLoad = false;
       });
     } catch (e) {
       debugPrint('Error fetching dogs: $e');
@@ -251,25 +241,30 @@ class _DogsPageState extends State<DogsPage> {
           ),
           _buildFilters(),
           Expanded(
-            child: ListView.builder(
-              itemCount: _dogs.length,
-              itemBuilder: (context, index) {
-                final dog = _dogs[index];
+            child: _dogs.isEmpty
+                ? const Center(
+                    child: Text("Search or use filters to find dogs"),
+                  )
+                : ListView.builder(
+                    controller: _scrollController,
+                    itemCount: _dogs.length,
+                    itemBuilder: (context, index) {
+                      final dog = _dogs[index];
 
-                return DogListCard(
-                  dog: dog,
-                  onTap: () {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (_) =>
-                            DogDetailsPage(dogId: dog['id']),
-                      ),
-                    );
-                  },
-                );
-              },
-            ),
+                      return DogListCard(
+                        dog: dog,
+                        onTap: () {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (_) =>
+                                  DogDetailsPage(dogId: dog['id']),
+                            ),
+                          );
+                        },
+                      );
+                    },
+                  ),
           ),
         ],
       ),
