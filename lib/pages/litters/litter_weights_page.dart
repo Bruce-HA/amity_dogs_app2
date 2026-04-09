@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../widgets/app_title.dart';
+import 'litter_weights_chart_page.dart';
 
 class LitterWeightsPage extends StatefulWidget {
   final Map litter;
@@ -29,68 +30,67 @@ class _LitterWeightsPageState extends State<LitterWeightsPage> {
   }
 
   Future<void> loadData() async {
-    try {
-      print('🔵 Loading puppies...');
-      final pups = await supabase
-          .from('dogs')
-          .select('id, dog_name, dog_ala, collar_colour')
-          .eq('litter_id', widget.litter['id'])
-          .order('dog_ala', ascending: true);
+    final pups = await supabase
+        .from('dogs')
+        .select('id, dog_name, dog_ala, collar_colour, sex')
+        .eq('litter_id', widget.litter['id'])
+        .order('dog_ala', ascending: true);
 
-      print('✅ Puppies loaded: ${pups.length}');
+    final w = await supabase
+        .from('puppy_weights')
+        .select()
+        .eq('litter_id', widget.litter['id']);
 
-      print('🔵 Loading weights...');
-      final w = await supabase
-          .from('puppy_weights')
-          .select()
-          .eq('litter_id', widget.litter['id']);
-
-      print('✅ Weights loaded: ${w.length}');
-
-      setState(() {
-        puppies = pups as List;
-        weights = w as List;
-        loading = false;
-      });
-    } catch (e) {
-      print('❌ ERROR loading weights: $e');
-      setState(() {
-        loading = false;
-      });
-    }
+    setState(() {
+      puppies = pups as List;
+      weights = w as List;
+      loading = false;
+    });
   }
 
   String label(Map pup) {
-    final name = pup['dog_name'] ?? '';
     final collar = pup['collar_colour'] ?? 'No Collar';
+    final ala = pup['dog_ala'] ?? '';
+    final sex = pup['sex'] ?? '';
 
-    return name.isNotEmpty ? "$collar ($name)" : collar;
+    String pupNumber = '';
+
+    if (ala.contains('-')) {
+      final parts = ala.split('-');
+      pupNumber = parts.last.replaceFirst(RegExp(r'^0+'), '');
+    }
+
+    final sexShort = sex == 'Male'
+        ? 'M'
+        : sex == 'Female'
+            ? 'F'
+            : '';
+
+    return '#$pupNumber $collar $sexShort'.trim();
   }
 
-  int? getWeight(String dogId, String date, String session) {
+  int? getWeight(String dogId, String date) {
     final row = weights.firstWhere(
       (w) =>
           w['dog_id'] == dogId &&
-          w['recorded_at'] == date &&
-          w['session'] == session,
-      orElse: () => <String, dynamic>{}, // ✅ FIXED
+          w['recorded_at'] == date,
+      orElse: () => <String, dynamic>{},
     );
 
     if (row.isEmpty) return null;
     return row['weight'];
   }
 
-  int? getPreviousWeight(String dogId, String date, String session) {
+  int? getPreviousWeight(String dogId, String date) {
     final sorted = weights
         .where((w) => w['dog_id'] == dogId)
         .toList()
       ..sort((a, b) =>
-          '${a['recorded_at']}${a['session']}'.compareTo(
-              '${b['recorded_at']}${b['session']}'));
+          a['recorded_at'].compareTo(b['recorded_at']));
 
     for (int i = 0; i < sorted.length; i++) {
       final w = sorted[i];
-      if (w['recorded_at'] == date && w['session'] == session) {
+      if (w['recorded_at'] == date) {
         if (i == 0) return null;
         return sorted[i - 1]['weight'];
       }
@@ -105,113 +105,47 @@ class _LitterWeightsPageState extends State<LitterWeightsPage> {
     return Colors.green;
   }
 
-  Future<void> enterWeight(Map pup, String date, String session) async {
+  Future<void> enterWeight(Map pup, String date) async {
     final controller = TextEditingController();
 
     DateTime selectedDate = DateTime.parse(date);
-    String selectedSession = session;
 
     await showDialog(
       context: context,
-      builder: (context) {
-        return StatefulBuilder(
-          builder: (context, setStateDialog) {
-            return AlertDialog(
-              title: Text('${label(pup)}'),
-              content: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  // 🐾 Weight input
-                  TextField(
-                    controller: controller,
-                    keyboardType: TextInputType.number,
-                    decoration:
-                        const InputDecoration(labelText: 'Weight (g)'),
-                  ),
+      builder: (_) => AlertDialog(
+        title: Text(label(pup)),
+        content: TextField(
+          controller: controller,
+          keyboardType: TextInputType.number,
+          decoration: const InputDecoration(labelText: 'Weight (g)'),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () async {
+              final value = int.tryParse(controller.text);
+              if (value == null) return;
 
-                  const SizedBox(height: 12),
+              await supabase.from('puppy_weights').upsert({
+                'dog_id': pup['id'],
+                'litter_id': widget.litter['id'],
+                'weight': value,
+                'recorded_at':
+                    selectedDate.toIso8601String().split('T').first,
+                'session': 'daily',
+              });
 
-                  // 📅 Date picker
-                  Row(
-                    children: [
-                      Expanded(
-                        child: Text(
-                          '${selectedDate.toIso8601String().split('T').first}',
-                        ),
-                      ),
-                      IconButton(
-                        icon: const Icon(Icons.calendar_today),
-                        onPressed: () async {
-                          final picked = await showDatePicker(
-                            context: context,
-                            initialDate: selectedDate,
-                            firstDate: DateTime(2020),
-                            lastDate: DateTime.now(),
-                          );
-
-                          if (picked != null) {
-                            setStateDialog(() {
-                              selectedDate = picked;
-                            });
-                          }
-                        },
-                      ),
-                    ],
-                  ),
-
-                  const SizedBox(height: 12),
-
-                  // ⏰ AM / PM selector
-                  DropdownButton<String>(
-                    value: selectedSession,
-                    isExpanded: true,
-                    items: ['AM', 'PM']
-                        .map((s) => DropdownMenuItem(
-                              value: s,
-                              child: Text(s),
-                            ))
-                        .toList(),
-                    onChanged: (v) {
-                      setStateDialog(() {
-                        selectedSession = v!;
-                      });
-                    },
-                  ),
-                ],
-              ),
-
-              actions: [
-                TextButton(
-                  onPressed: () => Navigator.pop(context),
-                  child: const Text('Cancel'),
-                ),
-
-                ElevatedButton(
-                  onPressed: () async {
-                    final value = int.tryParse(controller.text);
-                    if (value == null) return;
-
-                    await supabase.from('puppy_weights').upsert({
-                      'dog_id': pup['id'],
-                      'litter_id': widget.litter['id'],
-                      'weight': value,
-                      'recorded_at':
-                          selectedDate.toIso8601String().split('T').first,
-                      'session': selectedSession,
-                    });
-
-                    if (!mounted) return;
-
-                    Navigator.pop(context);
-                    loadData();
-                  },
-                  child: const Text('Save'),
-                ),
-              ],
-            );
-          },
-        );
-      },
+              if (!mounted) return;
+              Navigator.pop(context);
+              loadData();
+            },
+            child: const Text('Save'),
+          ),
+        ],
+      ),
     );
   }
 
@@ -225,60 +159,198 @@ class _LitterWeightsPageState extends State<LitterWeightsPage> {
     return dates;
   }
 
+  int? rowAverageGain(String date) {
+    List<int> gains = [];
+
+    for (var pup in puppies) {
+      final current = getWeight(pup['id'], date);
+      final previous = getPreviousWeight(pup['id'], date);
+
+      if (current != null && previous != null) {
+        gains.add(current - previous);
+      }
+    }
+
+    if (gains.isEmpty) return null;
+
+    return (gains.reduce((a, b) => a + b) / gains.length).round();
+  }
+
+  int? puppyAverageGain(String dogId) {
+    final pupWeights = weights
+        .where((w) => w['dog_id'] == dogId)
+        .toList()
+      ..sort((a, b) =>
+          a['recorded_at'].compareTo(b['recorded_at']));
+
+    List<int> gains = [];
+
+    for (int i = 1; i < pupWeights.length; i++) {
+      final current = pupWeights[i]['weight'];
+      final previous = pupWeights[i - 1]['weight'];
+
+      if (current != null && previous != null) {
+        gains.add(current - previous);
+      }
+    }
+
+    if (gains.isEmpty) return null;
+
+    return (gains.reduce((a, b) => a + b) / gains.length).round();
+  }
+
+  String formatDate(String date) {
+    final dt = DateTime.parse(date);
+
+    const days = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+    final day = days[dt.weekday - 1];
+
+    final formatted =
+        '${dt.day.toString().padLeft(2, '0')}-'
+        '${dt.month.toString().padLeft(2, '0')}-'
+        '${dt.year.toString().substring(2)}';
+
+    return '$day $formatted';
+  }
+
   @override
   Widget build(BuildContext context) {
     final today = DateTime.now().toIso8601String().split('T').first;
 
     final dates = getDates();
-    if (!dates.contains(today)) {
-      dates.add(today);
-    }
+    if (!dates.contains(today)) dates.add(today);
 
     return Scaffold(
       appBar: AppBar(
         title: buildTitle('Weights', 'LitterWeightsPage'),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.show_chart),
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => LitterWeightsChartPage(
+                    puppies: puppies,
+                    weights: weights,
+                  ),
+                ),
+              );
+            },
+          ),
+        ],
       ),
       body: loading
           ? const Center(child: CircularProgressIndicator())
           : SingleChildScrollView(
-              scrollDirection: Axis.horizontal,
-              child: DataTable(
-                columns: [
-                  const DataColumn(label: Text('Date')),
-                  ...puppies.map((p) =>
-                      DataColumn(label: Text(label(p)))),
-                ],
-                rows: dates.expand((date) {
-                  return ['AM', 'PM'].map((session) {
-                    return DataRow(
+              child: SingleChildScrollView(
+                scrollDirection: Axis.horizontal,
+                child: DataTable(
+                  columns: [
+                    const DataColumn(label: Text('Date')),
+                    ...puppies.map((p) {
+                      final collar = p['collar_colour'] ?? '';
+                      final ala = p['dog_ala'] ?? '';
+                      final sex = p['sex'] ?? '';
+
+                      String pupNumber = '';
+                      if (ala.contains('-')) {
+                        pupNumber = ala.split('-').last.replaceFirst(RegExp(r'^0+'), '');
+                      }
+
+                      final sexShort = sex == 'Male'
+                          ? 'M'
+                          : sex == 'Female'
+                              ? 'F'
+                              : '';
+
+                      return DataColumn(
+                        label: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Text(
+                              collar,
+                              style: const TextStyle(fontWeight: FontWeight.bold),
+                            ),
+                            Text('#$pupNumber $sexShort'),
+                          ],
+                        ),
+                      );
+                    }),
+                    const DataColumn(label: Text('Avg')),
+                  ],
+                  rows: [
+                    ...dates.map((date) {
+                      return DataRow(
+                        cells: [
+                          DataCell(Text(formatDate(date))),
+                          ...puppies.map((pup) {
+                            final w = getWeight(pup['id'], date);
+                            final prev = getPreviousWeight(pup['id'], date);
+
+                            return DataCell(
+                              GestureDetector(
+                                onTap: () => enterWeight(pup, date),
+                                child: w == null
+                                    ? const Text('+')
+                                    : Text(
+                                        '$w',
+                                        style: TextStyle(
+                                          color: getColor(w, prev),
+                                          fontWeight: FontWeight.bold,
+                                        ),
+                                      ),
+                              ),
+                            );
+                          }),
+                          DataCell(
+                            Builder(builder: (_) {
+                              final avg = rowAverageGain(date);
+                              if (avg == null) return const Text('');
+
+                              return Text(
+                                avg > 0 ? '+$avg' : '$avg',
+                                style: TextStyle(
+                                  color: avg < 0
+                                      ? Colors.red
+                                      : avg == 0
+                                          ? Colors.orange
+                                          : Colors.green,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              );
+                            }),
+                          ),
+                        ],
+                      );
+                    }),
+
+                    DataRow(
                       cells: [
-                        DataCell(Text('$date $session')),
+                        const DataCell(Text('Avg')),
                         ...puppies.map((pup) {
-                          final w = getWeight(
-                              pup['id'], date, session);
-                          final prev = getPreviousWeight(
-                              pup['id'], date, session);
+                          final avg = puppyAverageGain(pup['id']);
+                          if (avg == null) return const DataCell(Text(''));
 
                           return DataCell(
-                            GestureDetector(
-                              onTap: () =>
-                                  enterWeight(pup, date, session),
-                              child: w == null
-                                  ? const Text('+')
-                                  : Text(
-                                      '$w',
-                                      style: TextStyle(
-                                        color: getColor(w, prev),
-                                        fontWeight: FontWeight.bold,
-                                      ),
-                                    ),
+                            Text(
+                              avg > 0 ? '+$avg' : '$avg',
+                              style: TextStyle(
+                                color: avg < 0
+                                    ? Colors.red
+                                    : avg == 0
+                                        ? Colors.orange
+                                        : Colors.blue,
+                                fontWeight: FontWeight.bold,
+                              ),
                             ),
                           );
-                        })
+                        }),
+                        const DataCell(Text('')),
                       ],
-                    );
-                  });
-                }).toList(),
+                    ),
+                  ],
+                ),
               ),
             ),
     );
