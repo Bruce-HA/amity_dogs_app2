@@ -433,15 +433,28 @@ class _BreedingPlanCardState extends State<BreedingPlanCard> {
             ),
             const SizedBox(height: 6),
 
-            Text(
-              "♀ ${female['pet_name'] ?? female['dog_name']}: "
-              "${femaleDNA.isEmpty ? 'No DNA' : _dnaToString(femaleDNA)}",
-            ),
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  "♀ ${female['pet_name'] ?? female['dog_name']}",
+                  style: const TextStyle(fontWeight: FontWeight.w600),
+                ),
+                Text(
+                  femaleDNA.isEmpty ? 'No DNA' : _dnaToString(femaleDNA),
+                ),
 
-            Text(
-              "♂ ${male['pet_name'] ?? male['dog_name']}: "
-              "${maleDNA.isEmpty ? 'No DNA' : _dnaToString(maleDNA)}",
-            ),
+                const SizedBox(height: 6),
+
+                Text(
+                  "♂ ${male['pet_name'] ?? male['dog_name']}",
+                  style: const TextStyle(fontWeight: FontWeight.w600),
+                ),
+                Text(
+                  maleDNA.isEmpty ? 'No DNA' : _dnaToString(maleDNA),
+                ),
+              ],
+            )
           ],
         );
       },

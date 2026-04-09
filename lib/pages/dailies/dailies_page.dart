@@ -43,17 +43,18 @@ class _DailiesPageState extends State<DailiesPage> {
 
       if (dogRes.isNotEmpty) {
         final dog = dogRes.first;
-        final heroList = dog['hero'] as List?;
+        final heroField = dog['hero'];
+        final dogAla = dog['dog_ala'];
 
-        if (heroList != null && heroList.isNotEmpty) {
-          final heroItem = heroList.first;
-          final fileName = heroItem['url'];
-          final dogAla = dog['dog_ala'];
-
-          if (fileName != null && dogAla != null) {
+        if (heroField != null &&
+            heroField.toString().isNotEmpty &&
+            dogAla != null) {
+          if (heroField.toString().startsWith('http')) {
+            hero = heroField;
+          } else {
             hero = supabase.storage
                 .from('dog_files')
-                .getPublicUrl('$dogAla/photos/$fileName');
+                .getPublicUrl('$dogAla/photos/$heroField');
           }
         }
       }

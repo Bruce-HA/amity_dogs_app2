@@ -29,11 +29,10 @@ class _LitterPuppiesPageState extends State<LitterPuppiesPage> {
 
   Future<void> loadPuppies() async {
     final data = await supabase
-      .from('dogs')
-      .select(
-          'id, dog_name, dog_ala, sex, colour, collar_colour, birth_weight, birth_time')
-      .eq('litter_id', widget.litter['id'])
-      .order('dog_ala', ascending: true); // 👈 THIS LINE
+        .from('dogs_list_view_with_hero')
+        .select('id, dog_name, dog_ala, sex, collar_colour, hero')
+        .eq('litter_id', widget.litter['id'])
+        .order('dog_ala', ascending: true);
 
     setState(() {
       puppies = data as List;
@@ -50,8 +49,27 @@ class _LitterPuppiesPageState extends State<LitterPuppiesPage> {
     );
 
     if (updated == true) {
-      loadPuppies(); // 🔥 refresh after edit
+      loadPuppies();
     }
+  }
+
+  String buildPupTitle(Map pup) {
+    final collar = pup['collar_colour'] ?? 'Unknown';
+    final ala = pup['dog_ala'] ?? '';
+    final sex = pup['sex'] ?? '';
+
+    String pupNumber = '';
+    if (ala.contains('-')) {
+      pupNumber = ala.split('-').last.replaceFirst(RegExp(r'^0+'), '');
+    }
+
+    final sexShort = sex == 'Male'
+        ? 'M'
+        : sex == 'Female'
+            ? 'F'
+            : '';
+
+    return '#$pupNumber $collar $sexShort';
   }
 
   @override
@@ -69,24 +87,67 @@ class _LitterPuppiesPageState extends State<LitterPuppiesPage> {
                   itemBuilder: (context, index) {
                     final pup = puppies[index];
 
-                    final name = pup['dog_name'] ?? '';
-                    final collar = pup['collar_colour'] ?? 'No Collar';
+                    /// 🔥 BUILD IMAGE URL (SAFE)
+                    String? imageUrl;
+                    final hero = pup['hero'];
+                    final dogAla = pup['dog_ala'];
 
-                    final displayName = name.isNotEmpty
-                        ? "$collar ($name)"
-                        : collar;
+                    if (hero != null &&
+                        hero.toString().isNotEmpty &&
+                        dogAla != null) {
+                      if (hero.toString().startsWith('http')) {
+                        imageUrl = hero;
+                      } else {
+                        imageUrl = supabase.storage
+                            .from('dog_files')
+                            .getPublicUrl('$dogAla/photos/$hero');
+                      }
+                    }
 
                     return Card(
+                      margin:
+                          const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                       child: ListTile(
-                        title: Text(displayName),
-                        subtitle: Text(
-                          '${pup['colour'] ?? ''} • ${pup['sex'] ?? ''}',
+                        onTap: () {
+                          openDog(pup['id']);
+                        },
+
+                        /// 🖼 HERO IMAGE
+                        leading: SizedBox(
+                          width: 56,
+                          height: 56,
+                          child: ClipRRect(
+                            borderRadius: BorderRadius.circular(8),
+                            child: imageUrl != null
+                                ? Image.network(
+                                    imageUrl,
+                                    fit: BoxFit.cover,
+                                  )
+                                : Image.asset(
+                                    'assets/images/no_photo.png',
+                                    fit: BoxFit.cover,
+                                  ),
+                          ),
                         ),
-                        onTap: () => openDog(pup['id']),
+
+                        /// 🐶 TITLE
+                        title: Text(
+                          buildPupTitle(pup),
+                          style: const TextStyle(
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+
+                        /// 🧾 SUBTITLE
+                        subtitle: Text(
+                          pup['dog_name'] ?? '',
+                        ),
+
+                        trailing: const Icon(Icons.chevron_right),
                       ),
                     );
                   },
-                )
+                ),
     );
   }
 }

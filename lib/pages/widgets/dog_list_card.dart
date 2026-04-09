@@ -30,37 +30,37 @@ class DogListCard extends StatelessWidget {
 
   /// 🔥 SAFE HERO IMAGE RESOLVER
   String? _resolveHeroUrl(Map dog) {
-  try {
-      final heroList = dog['hero'] as List?;
+    try {
+      final hero = dog['hero']; // 👈 now a STRING
 
-      if (heroList == null || heroList.isEmpty) return null;
+      if (hero == null || hero.toString().isEmpty) return null;
 
-      final hero = heroList.firstWhere(
-        (p) => p['is_hero'] == true,
-        orElse: () => heroList.first,
-      );
-
-      final fileName = hero['url'];
       final dogAla = dog['dog_ala'];
 
-      if (fileName == null || dogAla == null) return null;
+      if (dogAla == null) return null;
 
+      // if already full URL
+      if (hero.toString().startsWith('http')) {
+        return hero;
+      }
+
+      // build storage URL
       return Supabase.instance.client.storage
           .from('dog_files')
           .getPublicUrl(
-            '$dogAla/photos/$fileName',
+            '$dogAla/photos/$hero',
             transform: const TransformOptions(
               width: 600,
               height: 450,
               resize: ResizeMode.cover,
               quality: 75,
             ),
-        );
-  } catch (e) {
-    debugPrint('Hero image error: $e');
-    return null;
+          );
+    } catch (e) {
+      debugPrint('Hero image error: $e');
+      return null;
+    }
   }
-}
 
   @override
   Widget build(BuildContext context) {

@@ -90,7 +90,14 @@ Future<void> showAddLogModal(
                       'created_by_name': AppUser.name,
                     });
 
-                    Navigator.pop(context);
+                    Navigator.pop(context); // close modal
+
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                        content: Text('Saved'),
+                        duration: Duration(seconds: 2),
+                      ),
+                    );
                   },
                   child: const Text("Save"),
                 ),
