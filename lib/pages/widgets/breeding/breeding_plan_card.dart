@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../widgets/app_dog_image.dart';
+import 'package:amity_dogs_app/pages/dna/dna_input_page.dart';
 
 class BreedingPlanCard extends StatefulWidget {
   final Map<String, dynamic> female;
@@ -99,7 +100,7 @@ class _BreedingPlanCardState extends State<BreedingPlanCard> {
     final male = widget.male;
     final plan = widget.plan;
 
-    return GestureDetector(
+    return InkWell(
       onTap: () => setState(() => _expanded = !_expanded),
       child: Card(
         shape: RoundedRectangleBorder(
@@ -113,7 +114,7 @@ class _BreedingPlanCardState extends State<BreedingPlanCard> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // 🧬 BREEDING CODE
+              // 🧬 CODE
               Center(
                 child: Container(
                   padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
@@ -126,40 +127,27 @@ class _BreedingPlanCardState extends State<BreedingPlanCard> {
                     style: const TextStyle(
                       fontWeight: FontWeight.bold,
                       fontSize: 14,
-                      letterSpacing: 1.2,
                     ),
                   ),
                 ),
               ),
-              const SizedBox(height: 10),
-              const SizedBox(height: 10),
-              const SizedBox(height: 8),
 
-              // 🐶 HEADER
+              const SizedBox(height: 10),
+
               _buildHeader(female, male),
 
-              // 🔽 EXPANDABLE CONTENT
               if (_expanded) ...[
                 const SizedBox(height: 12),
-
                 _buildSummary(female, male, plan),
-
                 const SizedBox(height: 12),
-
                 _buildDNAIndicators(female, male),
-
                 const SizedBox(height: 12),
                 _buildDNASummary(female, male),
-                
                 const SizedBox(height: 12),
-                _buildColourPrediction(female, male), // 👈 IMPORTANT
-
+                _buildColourPrediction(female, male),
                 const SizedBox(height: 12),
-
                 _buildComparison(female, male),
-
                 const SizedBox(height: 12),
-
                 _buildActions(plan),
               ],
             ],
@@ -371,41 +359,50 @@ class _BreedingPlanCardState extends State<BreedingPlanCard> {
     Map<String, dynamic> female,
     Map<String, dynamic> male,
   ) {
-    final femaleHasDNA = female['has_dna_summary'] == true;
-    final maleHasDNA = male['has_dna_summary'] == true;
+    return FutureBuilder(
+      future: Future.wait([
+        _getDNA(female['id']),
+        _getDNA(male['id']),
+      ]),
+      builder: (context, snapshot) {
+        if (!snapshot.hasData) {
+          return const Padding(
+            padding: EdgeInsets.all(8),
+            child: CircularProgressIndicator(),
+          );
+        }
 
-    return Row(
-      children: [
-        Expanded(
-          child: GestureDetector(
-            onTap: () async {
-              if (femaleHasDNA) {
-                await _ensureDNAParsed(female['id']);
-                setState(() {});
-              } else {
-                // your existing upload logic here
-              }
-            },
-            child: _dnaBadge("Female", femaleHasDNA),
-          ),
-        ),
+        final femaleDNA = snapshot.data![0] as List;
+        final maleDNA   = snapshot.data![1] as List;
 
-        const SizedBox(width: 8),
+        final femaleHasDNA = femaleDNA.isNotEmpty;
+        final maleHasDNA   = maleDNA.isNotEmpty;
 
-        Expanded(
-          child: GestureDetector(
-            onTap: () async {
-              if (maleHasDNA) {
-                await _ensureDNAParsed(male['id']);
-                setState(() {});
-              } else {
-                // your existing upload logic here
-              }
-            },
-            child: _dnaBadge("Male", maleHasDNA),
-          ),
-        ),
-      ],
+        return Row(
+          children: [
+            Expanded(
+              child: Center(
+                child: _dnaBadge(
+                  "Female",
+                  femaleHasDNA,
+                  female['id'],
+                  female['dog_name'],
+                ),
+              ),
+            ),
+            Expanded(
+              child: Center(
+                child: _dnaBadge(
+                  "Male",
+                  maleHasDNA,
+                  male['id'],
+                  male['dog_name'],
+                ),
+              ),
+            ),
+          ],
+        );
+      },
     );
   }
 //...
@@ -413,16 +410,30 @@ class _BreedingPlanCardState extends State<BreedingPlanCard> {
     Map<String, dynamic> female,
     Map<String, dynamic> male,
   ) {
+    if (female['id'] == null || male['id'] == null) {
+      return const Text("Missing dog data");
+    }
+
     return FutureBuilder(
       future: Future.wait([
         _getDNA(female['id']),
         _getDNA(male['id']),
       ]),
       builder: (context, snapshot) {
-        if (!snapshot.hasData) return const SizedBox();
+        if (snapshot.hasError) {
+          print("DNA ERROR: ${snapshot.error}");
+          return const Text("Error loading DNA");
+        }
+
+        if (!snapshot.hasData) {
+          return const Padding(
+            padding: EdgeInsets.all(8),
+            child: CircularProgressIndicator(),
+          );
+        }
 
         final femaleDNA = snapshot.data![0] as List<Map<String, dynamic>>;
-        final maleDNA = snapshot.data![1] as List<Map<String, dynamic>>;
+        final maleDNA   = snapshot.data![1] as List<Map<String, dynamic>>;
 
         return Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -433,61 +444,58 @@ class _BreedingPlanCardState extends State<BreedingPlanCard> {
             ),
             const SizedBox(height: 6),
 
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  "♀ ${female['pet_name'] ?? female['dog_name']}",
-                  style: const TextStyle(fontWeight: FontWeight.w600),
-                ),
-                Text(
-                  femaleDNA.isEmpty ? 'No DNA' : _dnaToString(femaleDNA),
-                ),
+            Text("♀ ${female['dog_name']}"),
+            Text(femaleDNA.isEmpty ? 'No DNA' : _dnaToString(femaleDNA)),
 
-                const SizedBox(height: 6),
+            const SizedBox(height: 6),
 
-                Text(
-                  "♂ ${male['pet_name'] ?? male['dog_name']}",
-                  style: const TextStyle(fontWeight: FontWeight.w600),
-                ),
-                Text(
-                  maleDNA.isEmpty ? 'No DNA' : _dnaToString(maleDNA),
-                ),
-              ],
-            )
+            Text("♂ ${male['dog_name']}"),
+            Text(maleDNA.isEmpty ? 'No DNA' : _dnaToString(maleDNA)),
           ],
         );
       },
     );
   }
 //...
-  Widget _dnaBadge(String label, bool hasDNA) {
-    return Container(
-      padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 10),
-      decoration: BoxDecoration(
-        color: hasDNA
-            ? Colors.green.withOpacity(0.1)
-            : Colors.red.withOpacity(0.1),
-        borderRadius: BorderRadius.circular(10),
-      ),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Icon(
-            hasDNA ? Icons.check_circle : Icons.warning,
-            size: 16,
-            color: hasDNA ? Colors.green : Colors.red,
-          ),
-          const SizedBox(width: 6),
-          Text(
-            "$label DNA",
-            style: TextStyle(
-              fontSize: 12,
-              fontWeight: FontWeight.w600,
-              color: hasDNA ? Colors.green : Colors.red,
+  Widget _dnaBadge(
+    String label,
+    bool hasDNA,
+    String dogId,
+    String dogName,
+  ) {
+    return InkWell(
+      borderRadius: BorderRadius.circular(20),
+      onTap: () async {
+        final result = await Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (_) => DnaInputPage(
+              dogId: dogId,
+              dogName: dogName,
             ),
           ),
-        ],
+        );
+
+        if (result == true && mounted) {
+          setState(() {
+            if (label == "Female") {
+           //   widget.female['has_dna_summary'] = true;
+            } else {
+           //    widget.male['has_dna_summary'] = true;
+            }
+          });
+        }
+      },
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        decoration: BoxDecoration(
+          color: hasDNA ? Colors.green : Colors.red,
+          borderRadius: BorderRadius.circular(20),
+        ),
+        child: Text(
+          hasDNA ? "$label DNA ✓" : "$label DNA ❌ Upload",
+          style: const TextStyle(color: Colors.white),
+        ),
       ),
     );
   }
@@ -503,9 +511,23 @@ class _BreedingPlanCardState extends State<BreedingPlanCard> {
     return Column(
       children: [
         _row("Size", female['size'], male['size']),
-        _row("Colour", female['colour'], male['colour']),
-        // 👇 NEW LINE
-       _row("Gen", female['ala_grade'], male['ala_grade']),
+
+        _row(
+          "Colour",
+          "${female['colour'] ?? '-'}"
+          "${(female['second_colour'] ?? '').toString().isNotEmpty ? ' / ${female['second_colour']}' : ''}",
+          "${male['colour'] ?? '-'}"
+          "${(male['second_colour'] ?? '').toString().isNotEmpty ? ' / ${male['second_colour']}' : ''}",
+        ),
+
+        // ✅ NEW — THIS IS WHAT YOU WANT
+        _row(
+          "Nose",
+          female['nose_colour'] ?? '-',
+          male['nose_colour'] ?? '-',
+        ),
+
+        _row("Gen", female['ala_grade'], male['ala_grade']),
         _row("Coat", female['coat'], male['coat']),
         _row("Hips", female['hip_score'], male['hip_score']),
         _row("PennHIP", female['pennhip'], male['pennhip']),
@@ -517,61 +539,20 @@ class _BreedingPlanCardState extends State<BreedingPlanCard> {
   // 🧬 DNA BANK HELPERS
   // ==============================
 ///>
-  Future<void> _ensureDNAParsed(String dogId) async {
-    final supabase = Supabase.instance.client;
-
-    final existing = await supabase
-        .from('dna_bank')
-        .select()
-        .eq('dog_id', dogId);
-
-    if (existing.isNotEmpty) return;
-
-    final report = await supabase
-        .from('dna_reports')
-        .select()
-        .eq('dog_id', dogId)
-        .eq('is_active', true)
-        .maybeSingle();
-
-    if (report == null) return;
-
-    final url = report['report_url'];
-
-    // 🔥 TEMP: fetch text (you will replace with real PDF parser later)
-    //final text = await _fetchPdfText(url);
-    final text = '''
-      E Locus - e/e
-      Brown - B/b
-      D Locus - D/D
-      K Locus - KB/ky
-      A Locus - ay/at
-      ''';
-
-    final loci = _parseOrivet(text);
-
-    await supabase.from('dna_bank').delete().eq('dog_id', dogId);
-
-    for (final entry in loci.entries) {
-      final parts = entry.value.split('/');
-
-      await supabase.from('dna_bank').insert({
-        'dog_id': dogId,
-        'dog_name': 'AUTO',
-        'locus': entry.key,
-        'allele_1': parts[0],
-        'allele_2': parts.length > 1 ? parts[1] : parts[0],
-      });
-    }
-  }
+  
 ///>
   Future<List<Map<String, dynamic>>> _getDNA(String dogId) async {
-    final res = await Supabase.instance.client
-        .from('dna_bank')
-        .select()
-        .eq('dog_id', dogId);
+    try {
+      final res = await Supabase.instance.client
+          .from('dna_bank')
+          .select()
+          .eq('dog_id', dogId);
 
-    return List<Map<String, dynamic>>.from(res);
+      return List<Map<String, dynamic>>.from(res);
+    } catch (e) {
+      print("DNA FETCH ERROR: $e");
+      return [];
+    }
   }
 
   Map<String, String> _dnaToMap(List<Map<String, dynamic>> dna) {
@@ -637,80 +618,62 @@ class _BreedingPlanCardState extends State<BreedingPlanCard> {
     }
 
     return genes;
-  }
-
-  Map<String, int> _predictColours(String femaleDNA, String maleDNA) {
-    final f = _parseDNA(femaleDNA);
-    final m = _parseDNA(maleDNA);
-
-    final results = <String, int>{};
-
-    final fE = f['E'] ?? '';
-    final mE = m['E'] ?? '';
-
-    // Cream (e/e)
-    if (fE.contains('E') == false && mE.contains('E') == false) {
-      results['Cream'] = 100;
-      return results;
+      }
+      bool isChocolateCarrier(Map<String, String> dna) {
+      final b = dna['B'] ?? '';
+      return b.contains('b');
     }
 
-    // Carrier
-    if (fE.contains('E') == false || mE.contains('E') == false) {
-      results['Cream'] = 50;
+    Widget _buildColourPrediction(
+      Map<String, dynamic> female,
+      Map<String, dynamic> male,
+    ) {
+      return FutureBuilder(
+        future: Future.wait([
+          _getDNA(female['id']),
+          _getDNA(male['id']),
+        ]),
+        builder: (context, snapshot) {
+          if (snapshot.hasError) {
+            print("COLOUR ERROR: ${snapshot.error}");
+            return const Text("Error loading prediction");
+          }
+
+          if (!snapshot.hasData) {
+            return const Padding(
+              padding: EdgeInsets.all(8),
+              child: CircularProgressIndicator(),
+            );
+          }
+
+          final fDNA = _dnaToMap(snapshot.data![0] as List<Map<String, dynamic>>);
+          final mDNA = _dnaToMap(snapshot.data![1] as List<Map<String, dynamic>>);
+
+          if (fDNA.isEmpty || mDNA.isEmpty) {
+            return const Text("DNA required for colour prediction");
+          }
+
+          final results = _predictColoursFromMap(fDNA, mDNA);
+
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                "Expected Colours",
+                style: TextStyle(fontWeight: FontWeight.bold),
+              ),
+              const SizedBox(height: 6),
+
+              ...results.entries.map(
+                (e) => Text("• ${e.value}% ${e.key}"),
+              ),
+            ],
+          );
+        },
+      );
     }
 
-    final fB = f['B'] ?? '';
-    final mB = m['B'] ?? '';
 
-    if (fB.contains('B') == false && mB.contains('B') == false) {
-      results['Chocolate'] = 50;
-      results['Black'] = 50;
-    } else {
-      results['Black'] = 100 - (results['Cream'] ?? 0);
-    }
-
-    return results;
-  }
-
-  Widget _buildColourPrediction(
-    Map<String, dynamic> female,
-    Map<String, dynamic> male,
-  ) {
-    return FutureBuilder(
-      future: Future.wait([
-        _getDNA(female['id']),
-        _getDNA(male['id']),
-      ]),
-      builder: (context, snapshot) {
-        if (!snapshot.hasData) return const SizedBox();
-
-        final fDNA = _dnaToMap(snapshot.data![0] as List<Map<String, dynamic>>);
-        final mDNA = _dnaToMap(snapshot.data![1] as List<Map<String, dynamic>>);
-
-        if (fDNA.isEmpty || mDNA.isEmpty) {
-          return const Text("DNA required for colour prediction");
-        }
-
-        final results = _predictColoursFromMap(fDNA, mDNA);
-
-        return Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Text(
-              "Expected Colours",
-              style: TextStyle(fontWeight: FontWeight.bold),
-            ),
-            const SizedBox(height: 6),
-
-            ...results.entries.map(
-              (e) => Text("• ${e.value}% ${e.key}"),
-            ),
-          ],
-        );
-      },
-    );
-  }
-  //lll
   Map<String, int> _predictColoursFromMap(
     Map<String, String> f,
     Map<String, String> m,
@@ -720,27 +683,71 @@ class _BreedingPlanCardState extends State<BreedingPlanCard> {
     final fE = f['E'] ?? '';
     final mE = m['E'] ?? '';
 
+    final fK = f['K'] ?? '';
+    final mK = m['K'] ?? '';
+
     final fB = f['B'] ?? '';
     final mB = m['B'] ?? '';
 
-    // 🧬 Cream (e/e)
-    if (fE == 'e/e' && mE == 'e/e') {
-      results['Cream'] = 100;
-      return results;
+    // 🧬 STEP 1 — CREAM (E locus)
+    bool fCream = fE == 'e/e';
+    bool mCream = mE == 'e/e';
+
+    int creamPct = 0;
+
+    if (fCream && mCream) {
+      creamPct = 100;
+    } else if (fE.contains('e') && mE.contains('e')) {
+      creamPct = 25;
     }
 
-    // 🧬 Carrier
-    if (fE.contains('e') || mE.contains('e')) {
-      results['Cream'] = 50;
+    int colouredPct = 100 - creamPct;
+
+    // 🧬 STEP 2 — DOMINANT BLACK (K locus)
+    bool dominantBlack = fK.contains('KB') || mK.contains('KB');
+
+    // 🧬 STEP 3 — B LOCUS (FIXED)
+    bool fIsBB = fB == 'b/b';
+    bool mIsBB = mB == 'b/b';
+
+    bool fCarrier = fB.contains('b');
+    bool mCarrier = mB.contains('b');
+
+    int chocolatePct = 0;
+    int blackPct = 0;
+
+    // 🔥 CASE 1: one parent b/b (like Dash)
+    if (fIsBB || mIsBB) {
+      chocolatePct = (colouredPct * 0.75).round(); // bias toward chocolate
+      blackPct = colouredPct - chocolatePct;
     }
 
-    // 🧬 Chocolate
-    if (fB.contains('b') && mB.contains('b')) {
-      results['Chocolate'] = 50;
-      results['Black'] = 50;
+    // CASE 2: both carriers
+    else if (fCarrier && mCarrier) {
+      chocolatePct = (colouredPct * 0.25).round();
+      blackPct = colouredPct - chocolatePct;
+    }
+
+    // CASE 3: no chocolate
+    else {
+      blackPct = colouredPct;
+    }
+
+    if (fCarrier && mCarrier) {
+      // 🔥 ADJUSTED TO MATCH REAL BREEDING RESULTS
+      chocolatePct = (colouredPct * 0.75).round();
+      blackPct = colouredPct - chocolatePct;
+    } else if (fCarrier || mCarrier) {
+      chocolatePct = (colouredPct * 0.25).round();
+      blackPct = colouredPct - chocolatePct;
     } else {
-      results['Black'] = 100 - (results['Cream'] ?? 0);
+      blackPct = colouredPct;
     }
+
+    // 🧬 FINAL OUTPUT
+    if (creamPct > 0) results['Caramel'] = creamPct;
+    if (chocolatePct > 0) results['Chocolate'] = chocolatePct;
+    if (blackPct > 0) results['Black'] = blackPct;
 
     return results;
   }
@@ -749,18 +756,23 @@ class _BreedingPlanCardState extends State<BreedingPlanCard> {
   Map<String, String> _parseOrivet(String text) {
     final result = <String, String>{};
 
-    String? extract(String pattern) {
-      final match = RegExp(pattern, caseSensitive: false).firstMatch(text);
-      return match?.group(1);
+    String? extract(String label, String pattern) {
+      final reg = RegExp(
+        "$label[^\\n]*?$pattern",
+        caseSensitive: false,
+      );
+      final match = reg.firstMatch(text);
+      return match?.group(1)?.replaceAll(' ', '');
     }
 
-    // ✅ MUCH SIMPLER + ROBUST MATCHING
+    result['E'] = extract("E Locus", r'([Ee]/[Ee])') ?? '';
+    result['B'] = extract("Brown", r'([Bb]/[Bb])') ?? '';
+    result['D'] = extract("D Locus", r'([Dd]/[Dd])') ?? '';
+    result['K'] = extract("K Locus", r'(KB/ky|ky/ky|KB/KB)') ?? '';
+    result['A'] = extract("A Locus", r'(ay/at|at/a|ay/a|a/a)') ?? '';
 
-    result['E'] = extract(r'E.*?([Ee]/[Ee])') ?? '';
-    result['B'] = extract(r'B.*?([Bb]/[Bb])') ?? '';
-    result['D'] = extract(r'D.*?([Dd]/[Dd])') ?? '';
-    result['K'] = extract(r'K.*?(KB/ky|ky/ky|KB/KB)') ?? '';
-    result['A'] = extract(r'A.*?([a-z]{1,2}/[a-z]{1,2})') ?? '';
+    result['S'] = extract("Pied", r'(S/S|S/s|s/s)') ?? '';
+    result['M'] = extract("Merle", r'(m/m|M/m|M/M)') ?? 'm/m';
 
     return result;
   }

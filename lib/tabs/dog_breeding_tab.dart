@@ -2,10 +2,11 @@ import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../pages/breeding/litters_page.dart';
 import '../utils/date_utils.dart';
-//..import '../tabs/dna_tab.dart';
 import '../pages/select_male_page.dart';
 import '../pages/widgets/breeding/breeding_plan_card.dart';
-import '../pages/dna/dna_input_page.dart';
+import 'package:amity_dogs_app/pages/dna/dna_input_page.dart';
+import '../../tabs/dna_tab.dart';
+import '../pages/dna/dna_display_page.dart';
 
 class DogBreedingTab extends StatefulWidget {
   final String dogId;
@@ -208,7 +209,22 @@ class _DogBreedingTabState extends State<DogBreedingTab> {
               );
             },
           ),
-
+//...
+          ElevatedButton(
+            child: Text("View DNA Report"),
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => DnaDisplayPage(
+                    dogId: widget.dogId,
+                    dogName: "DNA Report",
+                  ),
+                ),
+              );
+            },
+          ),
+//;;;
           const SizedBox(height: 12),
 
           _actionButton(
@@ -234,7 +250,7 @@ Widget _dogPreviewFull(String dogAla) {
     return FutureBuilder(
       future: supabase
           .from('dogs')
-          .select('dog_name, pet_name, dob, id')
+          .select('dog_name, pet_name, dob, id, colour, second_colour, nose_colour')
           .eq('dog_ala', dogAla)
           .maybeSingle(),
       builder: (context, snapshot) {
@@ -383,6 +399,7 @@ Widget _dogPreviewFull(String dogAla) {
   Widget _buildPlanCard(Map<String, dynamic> plan) {
     return FutureBuilder(
       future: Future.wait([
+        // 👇 FEMALE
         supabase
             .from('dogs')
             .select('''
@@ -392,6 +409,8 @@ Widget _dogPreviewFull(String dogAla) {
               dog_ala,
               size,
               colour,
+              second_colour,
+              nose_colour,
               coat,
               hip_score,
               pennhip,
@@ -402,6 +421,7 @@ Widget _dogPreviewFull(String dogAla) {
             .eq('dog_ala', plan['female_dog_ala'])
             .maybeSingle(),
 
+        // 👇 MALE
         supabase
             .from('dogs')
             .select('''
@@ -411,6 +431,8 @@ Widget _dogPreviewFull(String dogAla) {
               dog_ala,
               size,
               colour,
+              second_colour,
+              nose_colour,
               coat,
               hip_score,
               pennhip,
@@ -422,6 +444,16 @@ Widget _dogPreviewFull(String dogAla) {
             .maybeSingle(),
       ]),
       builder: (context, snapshot) {
+        // 🔴 ERROR HANDLING (CRITICAL)
+        if (snapshot.hasError) {
+          print("PLAN CARD ERROR: ${snapshot.error}");
+          return const Padding(
+            padding: EdgeInsets.all(12),
+            child: Text("Error loading breeding plan"),
+          );
+        }
+
+        // 🟡 LOADING
         if (!snapshot.hasData) {
           return const Padding(
             padding: EdgeInsets.all(12),
@@ -430,10 +462,14 @@ Widget _dogPreviewFull(String dogAla) {
         }
 
         final female = snapshot.data![0] as Map<String, dynamic>?;
-        final male = snapshot.data![1] as Map<String, dynamic>?;
+        final male   = snapshot.data![1] as Map<String, dynamic>?;
 
+        // 🔴 NULL SAFETY
         if (female == null || male == null) {
-          return const SizedBox();
+          return const Padding(
+            padding: EdgeInsets.all(12),
+            child: Text("Missing dog data"),
+          );
         }
 
         return BreedingPlanCard(
@@ -573,6 +609,20 @@ Widget _dogPreviewFull(String dogAla) {
               const SizedBox(height: 8),
 
               Text(name, textAlign: TextAlign.center),
+              //....
+              const SizedBox(height: 4),
+
+                Text(
+                  "${data?['colour'] ?? '-'}"
+                  "${data?['second_colour'] != null ? ' / ${data?['second_colour']}' : ''}",
+                  style: TextStyle(fontSize: 11, color: Colors.grey.shade700),
+                ),
+
+                Text(
+                  "Nose: ${data?['nose_colour'] ?? '-'}",
+                  style: TextStyle(fontSize: 11, color: Colors.grey.shade500),
+                ),
+              //....
               Text(pet, style: const TextStyle(color: Colors.grey)),
 
               const SizedBox(height: 4),
@@ -582,7 +632,7 @@ Widget _dogPreviewFull(String dogAla) {
                   final result = await Navigator.push(
                     context,
                     MaterialPageRoute(
-                      builder: (_) => DNAInputPage(
+                      builder: (_) => DnaInputPage(
                         dogId: data?['id'],
                         dogName: data?['dog_name'],
                       ),
@@ -590,9 +640,8 @@ Widget _dogPreviewFull(String dogAla) {
                   );
 
                   if (result == true) {
-                    setState(() {
-                      loadPlans();   // 🔥 reload breeding plans
-                    });
+                    await loadPlans();   // 🔥 wait for fresh data
+                    setState(() {});
                   }
                 },
                 child: Text(
@@ -693,7 +742,19 @@ Widget _dogPreviewFull(String dogAla) {
             const SizedBox(height: 12),
 
             row('Size', female['size'] ?? '-', male['size'] ?? '-'),
-            row('Colour', female['colour'] ?? '-', male['colour'] ?? '-'),
+            row(
+              'Colour',
+              "${female['colour'] ?? '-'}"
+              "${(female['second_colour'] ?? '').toString().isNotEmpty ? ' / ${female['second_colour']}' : ''}",
+              "${male['colour'] ?? '-'}"
+              "${(male['second_colour'] ?? '').toString().isNotEmpty ? ' / ${male['second_colour']}' : ''}" , 
+            ),
+
+            row(
+              'Nose',
+              female['nose_colour'] ?? '-',
+              male['nose_colour'] ?? '-',
+            ),
             row(
               'DNA',
               female['has_dna_summary'] == true ? '🧬 ✅' : '🧬 ❌',
