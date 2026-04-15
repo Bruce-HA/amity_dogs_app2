@@ -2,14 +2,14 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
-class SelectMalePage extends StatefulWidget {
-  const SelectMalePage({Key? key}) : super(key: key);
+class SelectFemalePage extends StatefulWidget {
+  const SelectFemalePage({Key? key}) : super(key: key);
 
   @override
-  State<SelectMalePage> createState() => _SelectMalePageState();
+  State<SelectFemalePage> createState() => _SelectMalePageState();
 }
 
-class _SelectMalePageState extends State<SelectMalePage> {
+class _SelectMalePageState extends State<SelectFemalePage> {
   final _client = Supabase.instance.client;
   final _searchController = TextEditingController();
 
@@ -34,7 +34,7 @@ class _SelectMalePageState extends State<SelectMalePage> {
       final response = await _client
           .from('dogs')
           .select('dog_ala, dog_name, sex')
-          .eq('sex', 'Male')
+          .eq('sex', 'Female')
           .order('dog_name')
           .range(from, from + pageSize - 1);
 
@@ -46,7 +46,6 @@ class _SelectMalePageState extends State<SelectMalePage> {
 
       from += pageSize;
     }
-
 
     setState(() {
       _dogs = allDogs;
@@ -82,7 +81,7 @@ class _SelectMalePageState extends State<SelectMalePage> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Select Male'),
+        title: const Text('Select Female'),
       ),
       body: Column(
         children: [

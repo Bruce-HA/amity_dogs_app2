@@ -144,10 +144,6 @@ class _DogDetailsPageState extends State<DogDetailsPage> {
     final isPet =
         (dogResult['status'] ?? '').toString().toLowerCase() == 'pet';
 
-    tabs = isPet
-        ? ['Overview', 'Photos', 'Notes', 'Files']
-        : ['Overview', 'Photos', 'Breeding', 'DNA', 'Notes', 'Files'];
-
     setState(() {
       dog = dogResult;
       heroUrl = newHeroUrl;
@@ -213,13 +209,57 @@ class _DogDetailsPageState extends State<DogDetailsPage> {
           .getPublicUrl('$dogAla/photos/$url');
     }
 
-    return Image.network(
-      finalUrl,
-      height: 220,
-      width: double.infinity,
-      fit: BoxFit.cover,
-      errorBuilder: (_, __, ___) => _placeholderHero(),
-    );
+          return SizedBox(
+        height: 260,
+        width: double.infinity,
+        child: Stack(
+          fit: StackFit.expand,
+          children: [
+            // 🐶 YOUR EXISTING IMAGE (UNCHANGED LOGIC)
+            Image.network(
+              finalUrl,
+              fit: BoxFit.cover,
+              errorBuilder: (_, __, ___) => _placeholderHero(),
+            ),
+
+            // 🌑 GRADIENT (safe overlay)
+            Container(
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
+                  colors: [
+                    Colors.transparent,
+                    Colors.black.withOpacity(0.5),
+                  ],
+                ),
+              ),
+            ),
+
+            // 🏷 DOG NAME (safe, uses existing data)
+            Positioned(
+              bottom: 16,
+              left: 16,
+              right: 16,
+              child: Text(
+                dog?['dog_name'] ?? '',
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 20,
+                  fontWeight: FontWeight.bold,
+                  shadows: [
+                    Shadow(
+                      blurRadius: 6,
+                      color: Colors.black,
+                      offset: Offset(0, 2),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ),
+      );
   }
 
  Widget _placeholderHero() {
@@ -434,32 +474,89 @@ class _DogDetailsPageState extends State<DogDetailsPage> {
     }
   }
 
+    IconData getTabIcon(String tab) {
+      switch (tab) {
+        case 'Overview':
+          return Icons.dashboard;
+        case 'Photos':
+          return Icons.photo;
+        case 'Breeding':
+          return Icons.pets;
+        case 'DNA':
+          return Icons.biotech;
+        case 'Notes':
+          return Icons.note;
+        case 'Files':
+          return Icons.folder;
+        default:
+          return Icons.circle;
+      }
+    }
   Widget buildTabs() {
     final tabs = getTabs();
 
-    return Wrap(
-      children: List.generate(tabs.length, (index) {
-        final isSelected = selectedTab == index;
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      child: GridView.builder(
+        shrinkWrap: true,
+        physics: const NeverScrollableScrollPhysics(),
+        itemCount: tabs.length,
+        gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+          crossAxisCount: 3,
+          childAspectRatio: 3,
+          mainAxisSpacing: 8,
+          crossAxisSpacing: 8,
+        ),
+        itemBuilder: (context, index) {
+          final isSelected = selectedTab == index;
 
-        return GestureDetector(
-          onTap: () => setState(() => selectedTab = index),
-          child: Container(
-            width: MediaQuery.of(context).size.width / 3,
-            padding: const EdgeInsets.symmetric(vertical: 12),
-            alignment: Alignment.center,
-            color: isSelected
-                ? Colors.green.shade100
-                : Colors.grey.shade200,
-            child: Text(
-              tabs[index],
-              style: TextStyle(
-                fontWeight:
-                    isSelected ? FontWeight.bold : FontWeight.normal,
+          return GestureDetector(
+            onTap: () => setState(() => selectedTab = index),
+            child: AnimatedContainer(
+              duration: const Duration(milliseconds: 180),
+              curve: Curves.easeOut,
+              decoration: BoxDecoration(
+                color: isSelected
+                    ? Colors.green.shade400
+                    : Colors.grey.shade100,
+                borderRadius: BorderRadius.circular(14),
+                boxShadow: isSelected
+                    ? [
+                        BoxShadow(
+                          color: Colors.green.withOpacity(0.25),
+                          blurRadius: 8,
+                          offset: const Offset(0, 3),
+                        ),
+                      ]
+                    : [],
+              ),
+              alignment: Alignment.center,
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(
+                    getTabIcon(tabs[index]),
+                    size: 16,
+                    color: isSelected
+                        ? Colors.white
+                        : Colors.grey.shade600,
+                  ),
+                  const SizedBox(width: 6),
+                  Text(
+                    tabs[index],
+                    style: TextStyle(
+                      fontWeight: FontWeight.w600,
+                      color: isSelected
+                          ? Colors.white
+                          : Colors.grey.shade700,
+                    ),
+                  ),
+                ],
               ),
             ),
-          ),
-        );
-      }),
+          );
+        },
+      ),
     );
   }
 
@@ -576,7 +673,7 @@ class _PersonCard extends StatelessWidget {
     required this.icon,
     required this.onTap,
   });
-  
+  //A
   @override
   Widget build(BuildContext context) {
     return InkWell(
@@ -606,7 +703,8 @@ class _PersonCard extends StatelessWidget {
                 color: Colors.grey.shade600,
               ),
             ),
-
+//S
+//S
             const SizedBox(height: 8),
 
             Row(
@@ -665,7 +763,7 @@ class _Stat extends StatelessWidget {
   final int value;
 
   const _Stat(this.label, this.value);
-
+//
   @override
   Widget build(BuildContext context) {
     return Row(

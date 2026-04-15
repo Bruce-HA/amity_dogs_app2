@@ -2,17 +2,24 @@ import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../widgets/app_dog_image.dart';
 import 'package:amity_dogs_app/pages/dna/dna_input_page.dart';
+import '../../dog_details_page.dart';
+import 'dart:math';
+import 'package:amity_dogs_app/pages/breeding/trial_mating_page.dart';
+import '../../mating/mating_page.dart';
+
 
 class BreedingPlanCard extends StatefulWidget {
   final Map<String, dynamic> female;
   final Map<String, dynamic> male;
   final Map<String, dynamic> plan;
+  final String currentDogId; // 👈 ADD
 
   const BreedingPlanCard({
     super.key,
     required this.female,
     required this.male,
     required this.plan,
+    required this.currentDogId, // 👈 ADD
   });
 
   @override
@@ -22,9 +29,30 @@ class BreedingPlanCard extends StatefulWidget {
 class _BreedingPlanCardState extends State<BreedingPlanCard> {
   
   bool _expanded = false;
+  // wrap to dog details page 
+  Widget _clickableDogImage({
+    required String dogAla,
+    required String? dogId,
+  }) {
+    return GestureDetector(
+      onTap: () async {
+        if (dogId == null) return;
 
+        await Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (_) => DogDetailsPage(dogId: dogId),
+          ),
+        );
+
+        // 🔥 refresh when coming back
+        setState(() {});
+      },
+      child: _dogHeroImage(dogAla, dogId),
+    );
+  }
+   // wrap to dog details page above
   // 👇👇👇 PASTE THE HERO IMAGE CODE RIGHT HERE 👇👇👇
-
 
   Widget _dogHeroImage(String dogAla, String? dogId) {
     if (dogId == null) {
@@ -91,10 +119,253 @@ class _BreedingPlanCardState extends State<BreedingPlanCard> {
       ),
     );
   }
+//jj
+  Future<double?> _calculateIBC(String femaleAla, String maleAla) async {
+    try {
+      final femalePedigree = await Supabase.instance.client.rpc(
+        'get_simple_pedigree',
+        params: {
+          'start_ala': femaleAla,
+          'max_generations': 7
+          ,
+        },
+      );
 
+      final malePedigree = await Supabase.instance.client.rpc(
+        'get_simple_pedigree',
+        params: {
+          'start_ala': maleAla,
+          'max_generations': 5,
+        },
+      );
+
+      if (femalePedigree == null || malePedigree == null) return null;
+
+      double ibc = 0.0;
+
+      // 🔥 group by ancestor
+      final femaleByAncestor = <String, List<Map>>{};
+      final maleByAncestor = <String, List<Map>>{};
+
+      for (var d in femalePedigree) {
+        if ((d['generation'] ?? 0) > 0) {
+          femaleByAncestor.putIfAbsent(d['dog_ala'], () => []).add(d);
+        }
+      }
+
+      for (var d in malePedigree) {
+        if ((d['generation'] ?? 0) > 0) {
+          maleByAncestor.putIfAbsent(d['dog_ala'], () => []).add(d);
+        }
+      }
+
+      // 🔥 Wright’s formula
+      for (var ancestor in femaleByAncestor.keys) {
+        if (!maleByAncestor.containsKey(ancestor)) continue;
+
+        final femalePaths = femaleByAncestor[ancestor]!;
+        final malePaths = maleByAncestor[ancestor]!;
+
+        for (var f in femalePaths) {
+          for (var m in malePaths) {
+            final n1 = f['generation'];
+            final n2 = m['generation'];
+
+            // assume Fa = 0 for now
+            final contribution = 1 / (pow(2, (n1 + n2 + 1)));
+
+            ibc += contribution;
+          }
+        }
+      }
+
+      return ibc;
+    } catch (e) {
+      print("IBC ERROR: $e");
+      return null;
+    }
+  }
+//jj
+  Future<void> _editAlaIBC(Map plan) async {
+    final controller = TextEditingController(
+      text: plan['ala_ibc']?.toString() ?? '',
+    );
+
+    final result = await showDialog(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: const Text("Enter ALA IBC"),
+        content: TextField(
+          controller: controller,
+          keyboardType: TextInputType.number,
+          decoration: const InputDecoration(
+            hintText: "e.g. 1.97",
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text("Cancel"),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(context, controller.text),
+            child: const Text("Save"),
+          ),
+        ],
+      ),
+    );
+
+    if (result == null) return;
+
+    final value = double.tryParse(result);
+    if (value == null) return;
+
+    await Supabase.instance.client
+        .from('breeding_plans')
+        .update({'ala_ibc': value})
+        .eq('id', plan['id']);
+
+    // 🔥 update UI instantly
+    setState(() {
+      plan['ala_ibc'] = value;
+    });
+  }
+//kk
+  Color _getCoiColor(double value) {
+    final percent = value * 100;
+
+    if (percent <= 5) return Colors.green;
+    if (percent <= 10) return Colors.orange;
+    return Colors.red;
+  }
+
+  String _getCoiLabel(double value) {
+    final percent = value * 100;
+
+    if (percent <= 5) return "Excellent";
+    if (percent <= 10) return "Acceptable";
+    return "High Risk";
+  }
+//LL. Risk COI
+  Color _getAvkColor(double value) {
+    final percent = value * 100;
+
+    if (percent >= 85) return Colors.green;
+    if (percent >= 70) return Colors.orange;
+    return Colors.red;
+  }
+
+  String _getAvkLabel(double value) {
+    if (value >= 0.85) return "Excellent";
+    if (value >= 0.70) return "Moderate";
+    return "Low";
+  }
+// Calculate AVK
+  Future<double?> _calculateAVK(String femaleAla, String maleAla) async {
+    try {
+      const generations = 5;
+
+      final femalePedigree = await Supabase.instance.client.rpc(
+        'get_simple_pedigree',
+        params: {
+          'start_ala': femaleAla,
+          'max_generations': generations,
+        },
+      );
+
+      final malePedigree = await Supabase.instance.client.rpc(
+        'get_simple_pedigree',
+        params: {
+          'start_ala': maleAla,
+          'max_generations': generations,
+        },
+      );
+
+      if (femalePedigree == null || malePedigree == null) return null;
+
+      // 🔥 collect unique ancestors (exclude self)
+      final uniqueAncestors = {
+        for (var d in [...femalePedigree, ...malePedigree])
+          if ((d['generation'] ?? 0) > 0) d['dog_ala']
+      };
+
+      // 🔥 theoretical max ancestors (both sides)
+      final maxPerSide = pow(2, generations) - 1;
+      final maxTotal = maxPerSide * 2;
+
+      final avk = uniqueAncestors.length / maxTotal;
+
+      return avk;
+    } catch (e) {
+      print("AVK ERROR: $e");
+      return null;
+    }
+  }
+//. Match
+  Future<double?> _calculateMatchScore(
+    String femaleAla,
+    String maleAla,
+  ) async {
+    final coi = await _calculateIBC(femaleAla, maleAla);
+    final avk = await _calculateAVK(femaleAla, maleAla);
+
+    if (coi == null || avk == null) return null;
+
+    // normalize
+    final coiScore = (1 - coi).clamp(0, 1);
+    final avkScore = avk.clamp(0, 1);
+
+    final score = (coiScore * 0.6) + (avkScore * 0.4);
+
+    return score;
+  }
+//.  Explain closest gen
+
+  Future<List<Map<String, dynamic>>> _getSharedAncestors(
+    String femaleAla,
+    String maleAla,
+  ) async {
+    final female = await Supabase.instance.client.rpc(
+      'get_simple_pedigree',
+      params: {'start_ala': femaleAla, 'max_generations': 5},
+    );
+
+    final male = await Supabase.instance.client.rpc(
+      'get_simple_pedigree',
+      params: {'start_ala': maleAla, 'max_generations': 5},
+    );
+
+    if (female == null || male == null) return [];
+
+    final femaleMap = {
+      for (var d in female)
+        if ((d['generation'] ?? 0) > 0)
+          d['dog_ala']: d,
+    };
+
+    final shared = <Map<String, dynamic>>[];
+
+    for (var d in male) {
+      final ala = d['dog_ala'];
+      if ((d['generation'] ?? 0) > 0 && femaleMap.containsKey(ala)) {
+        shared.add({
+          'dog_ala': ala,
+          'name': d['dog_name'] ?? ala,
+          'g1': femaleMap[ala]!['generation'],
+          'g2': d['generation'],
+        });
+      }
+    }
+
+    // sort by closest ancestors (most important first)
+    shared.sort((a, b) => (a['g1'] + a['g2']).compareTo(b['g1'] + b['g2']));
+
+    return shared.take(5).toList(); // limit to 5 for UI
+  }
+//
   // 👇 your existing methods continue below
 
-  @override
+ @override
   Widget build(BuildContext context) {
     final female = widget.female;
     final male = widget.male;
@@ -105,12 +376,25 @@ class _BreedingPlanCardState extends State<BreedingPlanCard> {
       child: Card(
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(16),
+          side: BorderSide(color: Colors.grey.shade200),
         ),
-        elevation: 3,
-        margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        elevation: 6,
+        shadowColor: Colors.black.withOpacity(0.1),
+        margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
         child: AnimatedContainer(
           duration: const Duration(milliseconds: 200),
-          padding: const EdgeInsets.all(12),
+          padding: const EdgeInsets.all(14),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(16),
+            gradient: LinearGradient(
+              colors: [
+                Colors.white,
+                Colors.grey.shade50,
+              ],
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+            ),
+          ),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -138,17 +422,146 @@ class _BreedingPlanCardState extends State<BreedingPlanCard> {
 
               if (_expanded) ...[
                 const SizedBox(height: 12),
-                _buildSummary(female, male, plan),
-                const SizedBox(height: 12),
-                _buildDNAIndicators(female, male),
-                const SizedBox(height: 12),
-                _buildDNASummary(female, male),
-                const SizedBox(height: 12),
-                _buildColourPrediction(female, male),
-                const SizedBox(height: 12),
-                _buildComparison(female, male),
-                const SizedBox(height: 12),
-                _buildActions(plan),
+
+                Container(
+                  padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(
+                    color: Colors.grey.shade50,
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Column(
+                    children: [
+                      const SizedBox(height: 12),
+                      const SizedBox(), // placeholder (metrics moved)
+                      const SizedBox(height: 12),
+                      _buildDNAIndicators(female, male),
+                      const SizedBox(height: 12),
+                      _buildDNASummary(female, male),
+                      const SizedBox(height: 12),
+                        FutureBuilder<double?>(
+                          future: _calculateMatchScore(
+                            female['dog_ala'],
+                            male['dog_ala'],
+                          ),
+                          builder: (context, snapshot) {if (!snapshot.hasData) {
+                            return const Text("🔥 Match Score: ...");
+                          }
+
+                          final score = snapshot.data!;
+                          final percent = (score * 100).toStringAsFixed(0);
+
+                          Color color = Colors.green;
+                          String label = "Excellent";
+
+                          if (score < 0.7) {
+                            color = Colors.orange;
+                            label = "Good";
+                          }
+                          if (score < 0.5) {
+                            color = Colors.red;
+                            label = "Risky";
+                          }
+
+                          return Container(
+                            padding: const EdgeInsets.all(10),
+                            decoration: BoxDecoration(
+                              color: color.withOpacity(0.1),
+                              borderRadius: BorderRadius.circular(10),
+                            ),
+                            child: Column(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Text(
+                                  "🔥 Match Score",
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    color: Colors.grey.shade700,
+                                  ),
+                                ),
+                                const SizedBox(height: 4),
+                                Text(
+                                  "$percent%",
+                                  style: TextStyle(
+                                    fontSize: 26, // for %
+                                    fontWeight: FontWeight.w700,
+                                    color: color,
+                                  ),
+                                ),
+                                const SizedBox(height: 2),
+                                Text(
+                                  label,
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    color: color,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          );
+                          },
+                        ),
+                      const SizedBox(height: 12),
+                      _buildSummary(female, male, plan),
+                      const SizedBox(height: 12),
+                        FutureBuilder<List<Map<String, dynamic>>>(
+                          future: _getSharedAncestors(
+                            female['dog_ala'],
+                            male['dog_ala'],
+                          ),
+                          builder: (context, snapshot) {
+                            if (!snapshot.hasData || snapshot.data!.isEmpty) {
+                              return const SizedBox(); // hide if none
+                            }
+
+                            final ancestors = snapshot.data!;
+
+                            return Container(
+                              padding: const EdgeInsets.all(10),
+                              decoration: BoxDecoration(
+                                color: Colors.orange.withOpacity(0.08),
+                                borderRadius: BorderRadius.circular(10),
+                              ),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  const Text(
+                                    "⚠️ Shared Ancestors (affecting COI)",
+                                    style: TextStyle(fontWeight: FontWeight.bold),
+                                  ),
+                                  const SizedBox(height: 6),
+
+                                  ...ancestors.map((a) {
+                                    final depth = a['g1'] + a['g2'];
+
+                                    return Padding(
+                                      padding: const EdgeInsets.symmetric(vertical: 2),
+                                      child: Text(
+                                        "• ${a['name']}  (Gen $depth)",
+                                        style: TextStyle(
+                                          fontSize: 12,
+                                          color: depth <= 4
+                                              ? Colors.red
+                                              : depth <= 6
+                                                  ? Colors.orange
+                                                  : Colors.black87,
+                                        ),
+                                      ),
+                                    );
+                                  }),
+                                ],
+                              ),
+                            );
+                          },
+                        ),
+                      const SizedBox(height: 12),
+                      _buildColourPrediction(female, male),
+                      const SizedBox(height: 12),
+                      _buildComparison(female, male),
+                      const SizedBox(height: 12),
+                      _buildActions(plan),
+                    ],
+                  ),
+                ),
               ],
             ],
           ),
@@ -190,9 +603,79 @@ class _BreedingPlanCardState extends State<BreedingPlanCard> {
                 icon: Icons.favorite,
                 label: "Start",
                 color: Colors.pink,
-                onTap: () {
-                  print("Start mating ${plan['breeding_plan_code']}");
-                },
+                onTap: () async {
+                final supabase = Supabase.instance.client;
+
+                try {
+                  final femaleAla = plan['female_dog_ala'];
+                  final maleAla   = plan['male_dog_ala'];
+
+                  final femaleId = widget.female['id'];
+                  final maleId   = widget.male['id'];
+
+                  // 🔢 GET EXISTING MATINGS FOR THIS FEMALE
+                  final existingMatings = await supabase
+                      .from('matings')
+                      .select('mating_code')
+                      .eq('female_dog_ala', femaleAla);
+
+                  int maxNumber = 0;
+
+                  for (var m in existingMatings) {
+                    final code = m['mating_code'] as String?;
+
+                    if (code == null) continue;
+
+                    final match = RegExp(r'M(\d+)$').firstMatch(code);
+
+                    if (match != null) {
+                      final num = int.tryParse(match.group(1)!);
+                      if (num != null && num > maxNumber) {
+                        maxNumber = num;
+                      }
+                    }
+                  }
+
+                  final nextNumber = maxNumber + 1;
+
+                  final matingCode =
+                      "$femaleAla-M${nextNumber.toString().padLeft(2, '0')}";
+
+                  // 🧱 INSERT MATING
+                  final response = await supabase
+                      .from('matings')
+                      .insert({
+                        'breeding_plan_id': plan['id'],
+                        'female_dog_id': femaleId,
+                        'male_dog_id': maleId,
+                        'female_dog_ala': femaleAla,
+                        'male_dog_ala': maleAla,
+                        'mating_code': matingCode,
+                        'status': 'planned',
+                      })
+                      .select()
+                      .single();
+
+                  final matingId = response['id'];
+
+                  // ✅ FEEDBACK
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(content: Text("Mating $matingCode created")),
+                  );
+
+                  // 🚀 NAVIGATE
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => MatingPage(matingId: matingId),
+                    ),
+                  );
+                } catch (e) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(content: Text("Error starting mating: $e")),
+                  );
+                }
+              },
               ),
             ),
             const SizedBox(width: 8),
@@ -216,28 +699,65 @@ class _BreedingPlanCardState extends State<BreedingPlanCard> {
                 icon: Icons.edit,
                 label: "Edit",
                 color: Colors.blue,
-                onTap: () {
-                  print("Edit ${plan['breeding_plan_code']}");
-                },
+                onTap: () {},
               ),
             ),
             const SizedBox(width: 8),
+
             Expanded(
               child: _actionButton(
                 icon: Icons.share,
                 label: "Share",
                 color: Colors.green,
+                onTap: () {},
+              ),
+            ),
+            const SizedBox(width: 8),
+
+            Expanded(
+              child: _actionButton(
+                icon: Icons.science,
+                label: "Trial",
+                color: Colors.deepPurple,
                 onTap: () {
-                  print("Share ${plan['breeding_plan_code']}");
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => const TrialMatingPage(),
+                    ),
+                  );
                 },
               ),
             ),
           ],
-        ),
+        )
       ],
     );
   }
-//..
+//..  Stst colours 
+  Widget _stat(String title, String value, String subtitle,
+    {Color color = Colors.black}) {
+  return Column(
+    children: [
+      Text(title, style: const TextStyle(fontSize: 12)),
+      const SizedBox(height: 4),
+      Text(
+        value,
+        style: TextStyle(
+          fontSize: 16,
+          fontWeight: FontWeight.bold,
+          color: color,
+        ),
+      ),
+      if (subtitle.isNotEmpty)
+        Text(
+          subtitle,
+          style: TextStyle(fontSize: 10, color: color),
+        ),
+    ],
+  );
+}
+//..   Button
   Widget _actionButton({
     required IconData icon,
     required String label,
@@ -272,18 +792,42 @@ class _BreedingPlanCardState extends State<BreedingPlanCard> {
   }
 //..
   Widget _dogCard(Map<String, dynamic> dog) {
-    final dogAla = dog['dog_ala'];
     final dogId = dog['id'];
+    final dogAla = dog['dog_ala'];
+
+    // 👇 THIS IS THE MAGIC LINE
+    final isCurrentDog = dogId == widget.currentDogId;
 
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
-        AppDogImage(
-          dogId: dogId,
-          dogAla: dogAla,
-          size: 84,       // 🔥 50% larger
-          radius: 16,     // 🔥 softer look
-        ),
+        isCurrentDog
+            ? AppDogImage(
+                dogId: dogId,
+                dogAla: dogAla,
+                size: 84,
+                radius: 16,
+              )
+            : GestureDetector(
+                onTap: () async {
+                  if (dogId == null) return;
+
+                  await Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => DogDetailsPage(dogId: dogId),
+                    ),
+                  );
+
+                  setState(() {});
+                },
+                child: AppDogImage(
+                  dogId: dogId,
+                  dogAla: dogAla,
+                  size: 84,
+                  radius: 16,
+                ),
+              ),
 
         const SizedBox(height: 8),
 
@@ -322,30 +866,82 @@ class _BreedingPlanCardState extends State<BreedingPlanCard> {
   ) {
     return Column(
       children: [
-        
+
+        /// 🧬 COI + AVK
         Row(
           children: [
-            Expanded(child: _stat("IBC", plan['ibc'] ?? "--", "")),
-            Expanded(child: _stat("ALA IBC", plan['ala_ibc'] ?? "--", "")),
+            Expanded(
+              child: FutureBuilder<double?>(
+                future: _calculateIBC(
+                  female['dog_ala'],
+                  male['dog_ala'],
+                ),
+                builder: (context, snapshot) {
+                  if (snapshot.connectionState == ConnectionState.waiting) {
+                    return _stat("COI", "...", "");
+                  }
+
+                  final value = snapshot.data;
+
+                  return _stat(
+                    "COI",
+                    value != null
+                        ? "${(value * 100).toStringAsFixed(2)}%"
+                        : "--",
+                    value != null ? _getCoiLabel(value) : "",
+                    color: value != null
+                        ? _getCoiColor(value)
+                        : Colors.grey,
+                  );
+                },
+              ),
+            ),
+
+            Expanded(
+              child: FutureBuilder<double?>(
+                future: _calculateAVK(
+                  female['dog_ala'],
+                  male['dog_ala'],
+                ),
+                builder: (context, snapshot) {
+                  if (snapshot.connectionState == ConnectionState.waiting) {
+                    return _stat("AVK / ALC", "...", "");
+                  }
+
+                  final value = snapshot.data;
+
+                  return _stat(
+                    "AVK / ALC",
+                    value != null
+                        ? "${(value * 100).toStringAsFixed(1)}%"
+                        : "--",
+                    value != null ? _getAvkLabel(value) : "",
+                    color: value != null
+                        ? _getAvkColor(value)
+                        : Colors.grey,
+                  );
+                },
+              ),
+            ),
           ],
         ),
-        const SizedBox(height: 8),
-      
-      ],
-    );
-  }
 
-  Widget _stat(String label, dynamic femaleVal, dynamic maleVal) {
-    return Column(
-      children: [
-        Text(
-          label,
-          style: const TextStyle(fontSize: 12, color: Colors.grey),
-        ),
-        const SizedBox(height: 4),
-        Text(
-          "$femaleVal${maleVal != "" ? " / $maleVal" : ""}",
-          style: const TextStyle(fontWeight: FontWeight.bold),
+        const SizedBox(height: 8),
+
+        /// 📊 ALA IBC
+        Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Text(
+              "ALA IBC: ${plan['ala_ibc'] ?? '--'}%",
+              style: const TextStyle(fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(width: 6),
+            InkWell(
+              onTap: () => _editAlaIBC(plan),
+              child: const Icon(Icons.edit, size: 16),
+            ),
+          ],
         ),
       ],
     );
@@ -521,10 +1117,25 @@ class _BreedingPlanCardState extends State<BreedingPlanCard> {
         ),
 
         // ✅ NEW — THIS IS WHAT YOU WANT
-        _row(
-          "Nose",
-          female['nose_colour'] ?? '-',
-          male['nose_colour'] ?? '-',
+        FutureBuilder(
+          future: Future.wait([
+            _getNose(female['id']),
+            _getNose(male['id']),
+          ]),
+          builder: (context, snapshot) {
+            if (!snapshot.hasData) {
+              return const Text("Loading nose...");
+            }
+
+            final fNose = snapshot.data![0];
+            final mNose = snapshot.data![1];
+
+            return _row(
+              "Nose",
+              fNose ?? '-',
+              mNose ?? '-',
+            );
+          },
         ),
 
         _row("Gen", female['ala_grade'], male['ala_grade']),
@@ -539,7 +1150,20 @@ class _BreedingPlanCardState extends State<BreedingPlanCard> {
   // 🧬 DNA BANK HELPERS
   // ==============================
 ///>
-  
+  Future<String?> _getNose(String dogId) async {
+    try {
+      final res = await Supabase.instance.client
+          .from('dogs')
+          .select('nose_colour')
+          .eq('id', dogId)
+          .maybeSingle();
+
+      return res?['nose_colour'];
+    } catch (e) {
+      print("NOSE FETCH ERROR: $e");
+      return null;
+    }
+  }
 ///>
   Future<List<Map<String, dynamic>>> _getDNA(String dogId) async {
     try {
@@ -654,7 +1278,8 @@ class _BreedingPlanCardState extends State<BreedingPlanCard> {
           }
 
           final results = _predictColoursFromMap(fDNA, mDNA);
-
+// Expected Colours End
+   
           return Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [

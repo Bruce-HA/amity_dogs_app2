@@ -389,8 +389,23 @@ class _DnaInputPageState extends State<DnaInputPage> {
                         ['ay/ay', 'ay/at', 'at/at', 'at/a', 'a/a'],
                         (v) => setState(() => aLocus = v)),
 
-                    _buildDropdown("B Locus", bLocus, ['B/B', 'B/b', 'b/b'],
-                        (v) => setState(() => bLocus = v)),
+                    _buildDropdown(
+                        "B Locus",
+                        bLocus,
+                        ['B/B', 'B/b', 'b/b'],
+                        (v) {
+                          setState(() {
+                            bLocus = v;
+
+                            // 🧬 SYNC NOSE FROM DNA
+                            if (v == 'b/b') {
+                              selectedNose = NoseColor.liver;
+                            } else if (v == 'B/B') {
+                              selectedNose = NoseColor.black;
+                            }
+                          });
+                        },
+                      ),
                   ],
                 ),
               ),
@@ -453,7 +468,18 @@ class _DnaInputPageState extends State<DnaInputPage> {
                                 child: Text(e.name),
                               ))
                           .toList(),
-                      onChanged: (v) => setState(() => selectedNose = v),
+                      onChanged: (v) {
+                        setState(() {
+                          selectedNose = v;
+
+                          // 🧬 SYNC DNA FROM NOSE
+                          if (v == NoseColor.liver) {
+                            bLocus = 'b/b';
+                          } else if (v == NoseColor.black) {
+                            bLocus = 'B/B';
+                          }
+                        });
+                      },
                     ),
                   ],
                 ),

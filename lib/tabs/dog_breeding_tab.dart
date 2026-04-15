@@ -3,6 +3,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../pages/breeding/litters_page.dart';
 import '../utils/date_utils.dart';
 import '../pages/select_male_page.dart';
+import '../pages/select_female_page.dart';
 import '../pages/widgets/breeding/breeding_plan_card.dart';
 import 'package:amity_dogs_app/pages/dna/dna_input_page.dart';
 import '../../tabs/dna_tab.dart';
@@ -37,18 +38,114 @@ class _DogBreedingTabState extends State<DogBreedingTab> {
     loadData();
     loadPlans();
   }
+///DD
+   Future<double?> _calculateIBC(String femaleAla, String maleAla) async {
+    try {
+      print("IBC CALL → female: $femaleAla | male: $maleAla");
 
+      final femalePedigree = await supabase.rpc(
+        'get_simple_pedigree',
+        params: {
+          'start_ala': femaleAla,
+          'max_generations': 5,
+        },
+      );
+
+      final malePedigree = await supabase.rpc(
+        'get_simple_pedigree',
+        params: {
+          'start_ala': maleAla,
+          'max_generations': 5,
+        },
+      );
+
+      print("Female pedigree count: ${femalePedigree?.length}");
+      print("Male pedigree count: ${malePedigree?.length}");
+
+      if (femalePedigree == null || malePedigree == null) return null;
+
+      final femaleSet = {
+        for (var d in femalePedigree) d['dog_ala']
+      };
+
+      final maleSet = {
+        for (var d in malePedigree) d['dog_ala']
+      };
+
+      final shared = femaleSet.intersection(maleSet);
+
+      print("Shared ancestors: ${shared.length}");
+
+      if (shared.isEmpty) return 0.0;
+
+      final score = shared.length / 100;
+
+      return score;
+    } catch (e) {
+      print("IBC ERROR: $e");
+      return null;
+    }
+  }
+
+  Future<void> _editAlaIBC(Map plan) async {
+    final controller = TextEditingController(
+      text: plan['ala_ibc']?.toString() ?? '',
+    );
+
+    final result = await showDialog(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: const Text("Enter ALA IBC"),
+        content: TextField(
+          controller: controller,
+          keyboardType: TextInputType.number,
+          decoration: const InputDecoration(
+            hintText: "e.g. 0.12",
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text("Cancel"),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(context, controller.text),
+            child: const Text("Save"),
+          ),
+        ],
+      ),
+    );
+
+    if (result == null) return;
+
+    final value = double.tryParse(result);
+    if (value == null) return;
+
+    await Supabase.instance.client
+        .from('breeding_plans')
+        .update({'ala_ibc': value})
+        .eq('id', plan['id']);
+
+    setState(() {});
+  }
+///
+///eee
+///DD
   Future<void> loadData() async {
     final dogResult = await supabase
         .from('dogs')
-        .select('dog_ala')
+        .select('dog_ala, sex')
         .eq('id', widget.dogId)
-        .maybeSingle();
+        .single();
+
+
+print("SEX VALUE → '${dogResult['sex']}'"); // 👈 ADD THIS LINE
 
     if (dogResult == null) return;
 
     final dogAla = dogResult['dog_ala'];
-
+    final currentAla = dogResult['dog_ala'];
+    final sex = dogResult['sex'];
     final damLitters = await supabase
         .from('litters')
         .select('male_count, female_count')
@@ -76,28 +173,101 @@ class _DogBreedingTabState extends State<DogBreedingTab> {
       loading = false;
     });
   }
+///dd
 
+///dd
   Future<void> loadPlans() async {
     final dogResult = await supabase
         .from('dogs')
-        .select('dog_ala')
+        .select('dog_ala, sex')
         .eq('id', widget.dogId)
         .single();
 
     final dogAla = dogResult['dog_ala'];
+    final sexRaw = dogResult['sex']?.toString().toLowerCase().trim();
 
-    final response = await supabase
-        .from('breeding_plans')
-        .select()
-        .eq('female_dog_ala', dogAla)
-        .order('created_at', ascending: false);
+    List response = [];
+
+    if (sexRaw == 'female') {
+      // ✅ Female owns plans
+      response = await supabase
+          .from('breeding_plans')
+          .select()
+          .eq('female_dog_ala', dogAla)
+          .order('created_at', ascending: false);
+    } else {
+      // ✅ Male sees plans
+      response = await supabase
+          .from('breeding_plans')
+          .select()
+          .eq('male_dog_ala', dogAla)
+          .order('created_at', ascending: false);
+    }
 
     setState(() {
       plans = List<Map<String, dynamic>>.from(response);
       loadingPlans = false;
     });
   }
+/// Shared Fields Male and Female
+  Widget _sharedFields(Map plan) {
+    final female = plan['female'];
+    final male = plan['male'];
+    print("IBC DEBUG → female: ${female['dog_ala']} | male: ${male['dog_ala']}");
 
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Divider(),
+        const SizedBox(height: 8),
+
+        const Text(
+          'Shared Fields',
+          style: TextStyle(fontWeight: FontWeight.bold),
+        ),
+
+        const SizedBox(height: 12),
+
+        /// 🧬 IBC
+        
+        FutureBuilder<double?>(
+          future: _calculateIBC(
+            female['dog_ala'],
+            male['dog_ala'],
+          ), // 👈 THIS COMMA WAS MISSING
+          builder: (context, snapshot) {
+            if (!snapshot.hasData) {
+              return const Text('🧬 IBC: ...');
+            }
+
+            final value = snapshot.data;
+
+            return Text(
+              value != null
+                  ? '🧬 IBC: ${(value * 100).toStringAsFixed(1)}%'
+                  : '🧬 IBC: --',
+            );
+          },
+        ),
+
+        const SizedBox(height: 8),
+
+        /// 📊 ALA IBC
+        Row(
+          children: [
+            const Text('📊 ALA IBC: '),
+            Text(plan['ala_ibc']?.toString() ?? '--'),
+            const SizedBox(width: 6),
+            InkWell(
+              onTap: () => _editAlaIBC(plan),
+              child: const Icon(Icons.edit, size: 16),
+            ),
+          ],
+        ),
+      ],
+    );
+  } 
+/// 
   @override
   Widget build(BuildContext context) {
     if (loading) {
@@ -131,36 +301,58 @@ class _DogBreedingTabState extends State<DogBreedingTab> {
               ),
               ElevatedButton(
                 onPressed: () async {
-                  final selectedMale = await Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (_) => const SelectMalePage(),
-                    ),
-                  );
-
-                  if (selectedMale == null) return;
+                  late String femaleAla;
+                  late String maleAla;
 
                   final dogResult = await supabase
                       .from('dogs')
-                      .select('dog_ala')
+                      .select('dog_ala, sex')
                       .eq('id', widget.dogId)
                       .single();
 
-                  final femaleAla = dogResult['dog_ala'];
+                  final String currentAla = dogResult['dog_ala'] as String;
+                  final String sex = dogResult['sex'] as String;
+
+                  if (sex.toLowerCase() == 'female') {
+                    final String? selectedMale = await Navigator.push<String>(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => const SelectMalePage(),
+                      ),
+                    );
+
+                    if (selectedMale == null) return;
+
+                    femaleAla = currentAla;
+                    maleAla = selectedMale;
+
+                  } else {
+                    final String? selectedFemale = await Navigator.push<String>(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => const SelectFemalePage(),
+                      ),
+                    );
+
+                    if (selectedFemale == null) return;
+
+                    femaleAla = selectedFemale;
+                    maleAla = currentAla;
+                  }
 
                   final existing = await supabase
                       .from('breeding_plans')
                       .select('breeding_plan_code')
                       .eq('female_dog_ala', femaleAla);
 
-                  int nextNumber = existing.length + 1;
+                  final int nextNumber = existing.length + 1;
 
                   final code =
                       '$femaleAla-B${nextNumber.toString().padLeft(2, '0')}';
 
                   await supabase.from('breeding_plans').insert({
                     'female_dog_ala': femaleAla,
-                    'male_dog_ala': selectedMale,
+                    'male_dog_ala': maleAla,
                     'breeding_plan_code': code,
                     'status': 'planned',
                     'is_active': true,
@@ -168,8 +360,8 @@ class _DogBreedingTabState extends State<DogBreedingTab> {
 
                   await loadPlans();
                 },
-                child: const Text('+ Create'),
-              ),
+                child: const Text('+ Create Breeding Plan'),
+              )
             ],
           ),
           const SizedBox(height: 12),
@@ -476,6 +668,7 @@ Widget _dogPreviewFull(String dogAla) {
           female: female,
           male: male,
           plan: plan,
+          currentDogId: widget.dogId, // 👈 ADD THIS
         );
       },
     );
@@ -516,7 +709,7 @@ Widget _dogPreviewFull(String dogAla) {
                   const SizedBox(height: 24),
 
                   // 🧬 SHARED FIELDS
-                  _sharedFieldsBlock(),
+                  _sharedFields(plan),
 
                   const SizedBox(height: 24),
 
@@ -586,6 +779,7 @@ Widget _dogPreviewFull(String dogAla) {
   }
  ///... Dog Details Block
   Widget _dogDetailBlock(String dogAla) {
+    
     return FutureBuilder(
       future: supabase
           .from('dogs')
@@ -667,35 +861,7 @@ Widget _dogPreviewFull(String dogAla) {
       },
     );
   }
- ///. Shared Field Block
-  Widget _sharedFieldsBlock() {
-    return Column(
-      children: const [
-        Divider(),
-        SizedBox(height: 8),
 
-        Text('Shared Fields',
-            style: TextStyle(fontWeight: FontWeight.bold)),
-
-        SizedBox(height: 12),
-
-        Text('🧬 IBC: --'),
-        Text('📊 ALA IBC: --'),
-
-        SizedBox(height: 12),
-
-        Text('Expected',
-            style: TextStyle(fontWeight: FontWeight.w600)),
-
-        SizedBox(height: 4),
-
-        Text('🎨 Pup Colours'),
-        Text('30% Chocolate'),
-        Text('50% Cream'),
-        Text('20% Black'),
-      ],
-    );
-  }
  ///
  ///-----Comparision Block
   Widget _comparisonBlock(String femaleAla, String maleAla) {
