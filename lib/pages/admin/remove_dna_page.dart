@@ -48,6 +48,8 @@ class _RemoveDNAPageState extends State<RemoveDNAPage> {
 
     final dogId = dog!['id'];
 
+    print("Deleting DNA for dog: $dogId"); // 👈 MOVE HERE
+
     setState(() => deleting = true);
 
     try {
@@ -67,21 +69,47 @@ class _RemoveDNAPageState extends State<RemoveDNAPage> {
           await supabase.storage.from('dog_files').remove([path]);
         }
       }
+      // Add count check
+      final resultCount = await supabase
+          .from('dna_results')
+          .select('id')
+          .eq('dog_id', dogId);
+
+      print("DNA results count: ${resultCount.length}");
+
 
       // 3️⃣ Delete DB records
-      await supabase.from('dna_bank').delete().eq('dog_id', dogId);
-      await supabase.from('dna_health').delete().eq('dog_id', dogId);
-      await supabase.from('dna_reports').delete().eq('dog_id', dogId);
-      await supabase.from('dna_results').delete().eq('dog_id', dogId);
+      // 🔥 DELETE ALL DNA TABLES (NEW STRUCTURE)
+    await supabase.from('dna_bank').delete().eq('dog_id', dogId);
+    final check = await supabase
+        .from('dna_bank')
+        .select()
+        .eq('dog_id', dogId);
+
+    print("AFTER DELETE dna_bank COUNT: ${check.length}");
+    await supabase.from('dna_health').delete().eq('dog_id', dogId);
+    await supabase.from('dna_summary').delete().eq('dog_id', dogId);
+
+    // optional (keep if still used)
+    await supabase.from('dna_reports').delete().eq('dog_id', dogId);
+
+    // 🔥 REMOVE OLD TABLE COMPLETELY (if exists)
+    await supabase.from('dna_results').delete().eq('dog_id', dogId);
 
       // 4️⃣ Reset flag
       await supabase.from('dogs').update({
         'has_dna_summary': false,
+        // future-proof 👇
+        // 'has_trait_certificate': false,
+        // 'has_manual_dna': false,
       }).eq('id', dogId);
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('DNA removed successfully')),
+          const SnackBar(
+            content: Text('🧬 DNA fully removed (all sources)'),
+            backgroundColor: Colors.orange,
+          ),
         );
 
         Navigator.pop(context, true);
@@ -199,6 +227,7 @@ class _RemoveDNAPageState extends State<RemoveDNAPage> {
 
     if (confirm == true) {
       await _removeDNA();
+
     }
   }
 }

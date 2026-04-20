@@ -50,10 +50,10 @@ class DogListCard extends StatelessWidget {
           .getPublicUrl(
             '$dogAla/photos/$hero',
             transform: const TransformOptions(
-              width: 600,
-              height: 450,
+              width: 300,   // 👈 HALF SIZE
+              height: 225,
               resize: ResizeMode.cover,
-              quality: 75,
+              quality: 60,  // 👈 lower = faster
             ),
           );
     } catch (e) {
@@ -86,20 +86,26 @@ class DogListCard extends StatelessWidget {
             borderRadius: const BorderRadius.vertical(top: Radius.circular(18)),
             child: finalUrl != null
                 ? AspectRatio(
-                    aspectRatio: 4 / 3,
+                    aspectRatio: 1.2,
                     child: CachedNetworkImage(
                       imageUrl: finalUrl,
                       fit: BoxFit.cover,
-                      memCacheWidth: 600,
-                      fadeInDuration: const Duration(milliseconds: 150),
+                      alignment: const Alignment(0, -0.5),
+                      memCacheWidth: 400,
+                      fadeInDuration: const Duration(milliseconds: 100),
+                      fadeOutDuration: const Duration(milliseconds: 50),
                       filterQuality: FilterQuality.low,
-                      placeholder: (context, url) => Container(
-                        height: 180,
-                        color: Colors.grey.shade200,
-                        child: const Center(
-                          child: CircularProgressIndicator(strokeWidth: 2),
+
+                      placeholder: (context, url) => AspectRatio(
+                        aspectRatio: 16 / 10, // 👈 taller, more like hero 
+                        child: Container(
+                          color: Colors.grey.shade200,
+                          child: const Center(
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          ),
                         ),
                       ),
+
                       errorWidget: (context, url, error) => _placeholder(),
                     ),
                   )

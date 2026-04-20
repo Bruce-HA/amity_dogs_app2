@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../widgets/person_picker.dart';
+import '../../dev/dev_info_panel.dart';
 
 class AdminDataToolsPage extends StatefulWidget {
   const AdminDataToolsPage({super.key});
@@ -271,9 +272,26 @@ class _AdminDataToolsPageState extends State<AdminDataToolsPage> {
 
     return Scaffold(
       appBar: AppBar(title: const Text('🛠 Data Tools')),
-      body: ListView(
-        padding: const EdgeInsets.all(16),
+      body: Column(
         children: [
+          DevInfoPanel(
+            page: 'Admin Data Tools',
+            filePath: 'lib/pages/admin/admin_data_tools_page.dart',
+            purpose: 'Merge duplicate people, scan usage, and fix ALA breeder links',
+            dataSources: [
+              'people',
+              'dogs',
+              'people_notes',
+              'people_files',
+              'people_roles',
+            ],
+            notes: 'Critical data operations. No undo. No transaction wrapping.',
+          ),
+
+          Expanded(
+            child: ListView(
+              padding: const EdgeInsets.all(16),
+              children: [
           _sectionCard(
             title: "Golden Record",
             child: PersonPicker(
@@ -371,8 +389,11 @@ class _AdminDataToolsPageState extends State<AdminDataToolsPage> {
           ),
         ],
       ),
-    );
-  }
+    ),
+  ],
+  ),
+   );
+}
 
   Widget _sectionCard({required String title, required Widget child}) {
     return Card(

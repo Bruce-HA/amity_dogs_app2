@@ -15,22 +15,16 @@ class DogCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     // 🔥 GET HERO IMAGE FROM dog_photos
-    final heroList = dog['hero'] as List?;
-
-    String? imageUrl;
-
-    if (heroList != null && heroList.isNotEmpty) {
-      final hero = heroList.first;
-
-      final fileName = hero['url'];
+    final fileName = dog['hero'];
       final dogAla = dog['dog_ala'];
+
+      String? imageUrl;
 
       if (fileName != null && dogAla != null) {
         imageUrl = Supabase.instance.client.storage
             .from('dog_files')
             .getPublicUrl('$dogAla/photos/$fileName');
       }
-    }
 
     String age = '';
     final dobRaw = dog['dob'];
@@ -47,7 +41,6 @@ class DogCard extends StatelessWidget {
       onTap: onTap, // 👈 THIS FIXES NAVIGATION
       borderRadius: BorderRadius.circular(12),
       child: Container(
-        height: 180,
         decoration: BoxDecoration(
           color: Colors.white,
           borderRadius: BorderRadius.circular(12),
@@ -59,74 +52,50 @@ class DogCard extends StatelessWidget {
           ],
         ),
         child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // IMAGE
-            ClipRRect(
-              borderRadius:
-                  const BorderRadius.vertical(top: Radius.circular(12)),
-             child: imageUrl != null
-                ? Image.network(
-                    imageUrl,
-                    height: 110,
-                    width: double.infinity,
-                    fit: BoxFit.cover,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // ✅ IMAGE (ONLY ONE)
+          ClipRRect(
+            borderRadius:
+                const BorderRadius.vertical(top: Radius.circular(12)),
+            child: imageUrl != null
+                ? AspectRatio(
+                    aspectRatio: 1.2,
+                    child: Image.network(
+                      imageUrl,
+                      fit: BoxFit.cover,
+                      alignment: Alignment.topCenter,
+                    ),
                   )
                 : Container(
                     height: 110,
                     color: Colors.grey.shade300,
-                  )
-                 ),
-  
+                  ),
+          ),
 
-            // CONTENT
-            Expanded(
-              child: Padding(
-                padding: const EdgeInsets.all(8),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Text(
-                      dog['dog_name'] ?? '',
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
-                        fontWeight: FontWeight.w600,
-                        fontSize: 13,
-                      ),
-                    ),
-                    Text(
-                      dog['dog_ala'] ?? '',
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: TextStyle(
-                        fontSize: 11,
-                        color: Colors.grey.shade600,
-                      ),
-                    ),
-                    if (age.isNotEmpty)
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 6, vertical: 2),
-                        decoration: BoxDecoration(
-                          color: isUnderFive
-                              ? Colors.green.shade100
-                              : Colors.red.shade100,
-                          borderRadius: BorderRadius.circular(6),
-                        ),
-                        child: Text(
-                          age,
-                          style: const TextStyle(fontSize: 10),
-                        ),
-                      ),
-                  ],
+          // ✅ TEXT
+          Padding(
+            padding: const EdgeInsets.all(8),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  dog['dog_name'] ?? '',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
                 ),
-              ),
+                Text(
+                  dog['dog_ala'] ?? '',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ],
             ),
-          ],
-        ),
+          ),
+        ],
+      ),
       ),
     );
+ 
   }
 }

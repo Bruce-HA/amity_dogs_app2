@@ -3,6 +3,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:syncfusion_flutter_pdf/pdf.dart';
 import 'dart:typed_data';
+import '../services/dna_service.dart';
 
 class DnaTab extends StatefulWidget {
   final String dogId;
@@ -73,7 +74,9 @@ class _DnaTabState extends State<DnaTab> {
       'dog_id': widget.dogId,
       'lab': 'Orivet',
       'report_url': publicUrl,
+      'report_type': 'summary', // 👈 ADD THIS
       'is_active': true,
+      'test_date': DateTime.now().toIso8601String(),
     });
 
     await supabase
@@ -85,13 +88,18 @@ class _DnaTabState extends State<DnaTab> {
 
     final extractedText = extractPdfText(bytes);
 
-    final parsed = parseLoci(extractedText);
+    await DNAService().processDNA(
+      dogId: widget.dogId,
+      fileBytes: bytes,
+    );
+
+  /*  final parsed = parseLoci(extractedText);
 
     print("PARSED LOCI:");
     parsed.forEach((key, value) {
       print("$key → ${value[0]} / ${value[1]}");
     });
-
+*/
     // 👇 reload state
     await loadDna();
 
@@ -100,6 +108,7 @@ class _DnaTabState extends State<DnaTab> {
     );
   }
 //////..
+/*
   Map<String, List<String>> parseLoci(String text) {
     final loci = <String, List<String>>{};
 
@@ -129,6 +138,8 @@ class _DnaTabState extends State<DnaTab> {
 
     return loci;
   }
+
+  */
 ///..
   Future<void> loadDna() async {
     setState(() {
@@ -145,7 +156,7 @@ class _DnaTabState extends State<DnaTab> {
 
     if (hasDna) {
       final response = await supabase
-          .from('dna_loci')
+          .from('dna_bank')
           .select()
           .eq('dog_id', widget.dogId);
 
@@ -192,6 +203,7 @@ class _DnaTabState extends State<DnaTab> {
                     );
                   },
                 )
+                
               : Center(
                   child: ElevatedButton(
                     onPressed: uploadDnaSummary,

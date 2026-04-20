@@ -2,6 +2,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'people_detail_page.dart';
+import 'people_edit_page.dart';
 
 class PeoplePage extends StatefulWidget {
   const PeoplePage({super.key});
@@ -222,6 +223,44 @@ class _PeoplePageState extends State<PeoplePage> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        if (business != null && business.toString().isNotEmpty)
+                          Text(
+                            business,
+                            style: const TextStyle(
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+
+                        Text(
+                          name,
+                          style: TextStyle(color: Colors.grey.shade700),
+                        ),
+                      ],
+                    ),
+                  ),
+
+                  IconButton(
+                    icon: const Icon(Icons.edit, size: 18),
+                    onPressed: () async {
+                      await Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => PeopleEditPage(person: person),
+                        ),
+                      );
+
+                      _fetchPeople(reset: true); // 🔥 refresh
+                    },
+                  )
+                ],
+              ),
               if (business != null && business.toString().isNotEmpty)
                 Text(
                   business,
@@ -266,6 +305,22 @@ class _PeoplePageState extends State<PeoplePage> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(title: const Text('People')),
+
+      floatingActionButton: FloatingActionButton(
+        child: const Icon(Icons.add),
+        onPressed: () async {
+          await Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (_) => PeopleEditPage(
+                person: {}, // 👈 NEW PERSON
+              ),
+            ),
+          );
+
+          _fetchPeople(reset: true); // 🔥 refresh list
+        },
+      ),
       body: Column(
         children: [
           Padding(

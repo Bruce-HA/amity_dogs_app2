@@ -6,6 +6,7 @@ import '../../dog_details_page.dart';
 import 'dart:math';
 import 'package:amity_dogs_app/pages/breeding/trial_mating_page.dart';
 import '../../mating/mating_page.dart';
+import '../../../utils/display_helpers.dart';
 
 
 class BreedingPlanCard extends StatefulWidget {
@@ -119,6 +120,7 @@ class _BreedingPlanCardState extends State<BreedingPlanCard> {
       ),
     );
   }
+// } 
 //jj
   Future<double?> _calculateIBC(String femaleAla, String maleAla) async {
     try {
@@ -584,7 +586,46 @@ class _BreedingPlanCardState extends State<BreedingPlanCard> {
 
         const SizedBox(width: 12), // 🔥 improved spacing
 
-        const Icon(Icons.close, size: 18),
+    // the Paw in between
+        FutureBuilder(
+          future: Future.wait([
+            _getDNA(female['id']),
+            _getDNA(male['id']),
+          ]),
+          builder: (context, snapshot) {
+            if (!snapshot.hasData) {
+              return const Icon(Icons.pets, size: 40, color: Colors.grey);
+            }
+
+            final femaleDNA = snapshot.data![0] as List;
+            final maleDNA   = snapshot.data![1] as List;
+
+            final femaleHasDNA = femaleDNA.isNotEmpty;
+            final maleHasDNA   = maleDNA.isNotEmpty;
+
+            final bothHaveDNA = femaleHasDNA && maleHasDNA;
+
+            final hasMissingDNA = !bothHaveDNA;
+
+            return GestureDetector(
+              onTap: () {
+                if (hasMissingDNA) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text("⚠️ Missing DNA"),
+                      backgroundColor: Colors.red,
+                    ),
+                  );
+                }
+              },
+              child: Icon(
+                Icons.pets,
+                size: 40,
+                color: bothHaveDNA ? Colors.green : Colors.red,
+              ),
+            );
+          },
+        ),
 
         const SizedBox(width: 12),
 
@@ -1099,21 +1140,74 @@ class _BreedingPlanCardState extends State<BreedingPlanCard> {
   // ==============================
   // 📋 COMPARISON TABLE
   // ==============================
+  Widget noseBadge(String? value) {
+    final display = displayNose(value);
 
+    Color bgColor;
+    Color textColor = Colors.white;
+
+    switch (value?.toLowerCase()) {
+      case 'liver':
+        bgColor = Colors.brown;
+        break;
+      case 'black':
+        bgColor = Colors.black;
+        break;
+      default:
+        bgColor = Colors.grey;
+    }
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+      decoration: BoxDecoration(
+        color: bgColor,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(
+          color: Colors.white.withOpacity(0.4), // 👈 subtle border
+          width: 1,
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.15),
+            blurRadius: 4,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Text(
+        display.isEmpty ? '-' : display,
+        style: TextStyle(
+          color: textColor,
+          fontSize: 12,
+          fontWeight: FontWeight.w600,
+        ),
+      ),
+    );
+  }
+
+  //
   Widget _buildComparison(
     Map<String, dynamic> female,
     Map<String, dynamic> male,
   ) {
     return Column(
       children: [
-        _row("Size", female['size'], male['size']),
+        _row(
+          "Size",
+          Text(female['size']?.toString() ?? '-'),
+          Text(male['size']?.toString() ?? '-'),
+        ),
 
         _row(
           "Colour",
-          "${female['colour'] ?? '-'}"
-          "${(female['second_colour'] ?? '').toString().isNotEmpty ? ' / ${female['second_colour']}' : ''}",
-          "${male['colour'] ?? '-'}"
-          "${(male['second_colour'] ?? '').toString().isNotEmpty ? ' / ${male['second_colour']}' : ''}",
+          Text(
+            "${female['colour'] ?? '-'}"
+            "${(female['second_colour'] ?? '').toString().isNotEmpty ? ' / ${female['second_colour']}' : ''}",
+          ),
+          Text(
+            "${male['colour'] ?? '-'}"
+            "${(male['second_colour'] ?? '').toString().isNotEmpty ? ' / ${male['second_colour']}' : ''}",
+          ),
         ),
 
         // ✅ NEW — THIS IS WHAT YOU WANT
@@ -1132,16 +1226,32 @@ class _BreedingPlanCardState extends State<BreedingPlanCard> {
 
             return _row(
               "Nose",
-              fNose ?? '-',
-              mNose ?? '-',
+              noseBadge(fNose),
+              noseBadge(mNose),
             );
           },
         ),
 
-        _row("Gen", female['ala_grade'], male['ala_grade']),
-        _row("Coat", female['coat'], male['coat']),
-        _row("Hips", female['hip_score'], male['hip_score']),
-        _row("PennHIP", female['pennhip'], male['pennhip']),
+        _row(
+          "Gen",
+          Text(female['ala_grade']?.toString() ?? '-'),
+          Text(male['ala_grade']?.toString() ?? '-'),
+        ),
+        _row(
+          "Coat",
+          Text(female['coat_type']?.toString() ?? '-'),
+          Text(male['coat_type']?.toString() ?? '-'),
+        ),
+        _row(
+          "Hips",
+          Text(female['hip_score']?.toString() ?? '-'),
+          Text(male['hip_score']?.toString() ?? '-'),
+        ),
+        _row(
+          "PennHIP",
+          Text(female['pennhip']?.toString() ?? '-'),
+          Text(male['pennhip']?.toString() ?? '-'),
+        ),
       ],
     );
   }
@@ -1201,24 +1311,13 @@ class _BreedingPlanCardState extends State<BreedingPlanCard> {
     }).join(', ');
   }
 //;;
-  Widget _row(String label, dynamic f, dynamic m) {
+  Widget _row(String label, Widget left, Widget right) {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 4),
       child: Row(
         children: [
-          Expanded(child: Text(label)),
-          Expanded(
-            child: Text(
-              (f ?? "--").toString(),
-              textAlign: TextAlign.center,
-            ),
-          ),
-          Expanded(
-            child: Text(
-              (m ?? "--").toString(),
-              textAlign: TextAlign.center,
-            ),
-          ),
+          Expanded(child: left),
+          Expanded(child: right),
         ],
       ),
     );
@@ -1305,74 +1404,95 @@ class _BreedingPlanCardState extends State<BreedingPlanCard> {
   ) {
     final results = <String, int>{};
 
-    final fE = f['E'] ?? '';
-    final mE = m['E'] ?? '';
+    String norm(String? v) => (v ?? '').toUpperCase();
 
-    final fK = f['K'] ?? '';
-    final mK = m['K'] ?? '';
+    final fE = norm(f['E']);
+    final mE = norm(m['E']);
 
-    final fB = f['B'] ?? '';
-    final mB = m['B'] ?? '';
+    final fK = norm(f['K']);
+    final mK = norm(m['K']);
 
-    // 🧬 STEP 1 — CREAM (E locus)
-    bool fCream = fE == 'e/e';
-    bool mCream = mE == 'e/e';
+    final fB = norm(f['B']);
+    final mB = norm(m['B']);
+
+    final fA = norm(f['A']);
+    final mA = norm(m['A']);
+
+    final fS = norm(f['S']);
+    final mS = norm(m['S']);
+
+    final fM = norm(f['M']);
+    final mM = norm(m['M']);
+
+    // 🧬 STEP 1 — E LOCUS
+    bool f_ee = !fE.contains('E');
+    bool m_ee = !mE.contains('E');
 
     int creamPct = 0;
 
-    if (fCream && mCream) {
-      creamPct = 100;
-    } else if (fE.contains('e') && mE.contains('e')) {
+    if (f_ee && m_ee) {
+      return {'Caramel': 100};
+    } else if (fE.contains('E') && mE.contains('E')) {
       creamPct = 25;
+    } else {
+      creamPct = 50;
     }
 
     int colouredPct = 100 - creamPct;
 
-    // 🧬 STEP 2 — DOMINANT BLACK (K locus)
+    // 🧬 STEP 2 — K LOCUS
     bool dominantBlack = fK.contains('KB') || mK.contains('KB');
 
-    // 🧬 STEP 3 — B LOCUS (FIXED)
-    bool fIsBB = fB == 'b/b';
-    bool mIsBB = mB == 'b/b';
-
-    bool fCarrier = fB.contains('b');
-    bool mCarrier = mB.contains('b');
-
-    int chocolatePct = 0;
-    int blackPct = 0;
-
-    // 🔥 CASE 1: one parent b/b (like Dash)
-    if (fIsBB || mIsBB) {
-      chocolatePct = (colouredPct * 0.75).round(); // bias toward chocolate
-      blackPct = colouredPct - chocolatePct;
+    if (dominantBlack) {
+      results['Black'] = colouredPct;
+      if (creamPct > 0) results['Caramel'] = creamPct;
+      return results;
     }
 
-    // CASE 2: both carriers
-    else if (fCarrier && mCarrier) {
-      chocolatePct = (colouredPct * 0.25).round();
-      blackPct = colouredPct - chocolatePct;
+    // 🧬 STEP 3 — B LOCUS
+    bool bothChocolate = fB == 'B/B' && mB == 'B/B';
+    int chocolatePct = bothChocolate ? colouredPct : colouredPct;
+
+    String baseColour = bothChocolate ? 'Chocolate' : 'Black';
+
+    // 🧬 STEP 4 — A LOCUS (PATTERN)
+    bool phantomPossible =
+        (fA.contains('AT') || fA.contains('A')) &&
+        (mA.contains('AT') || mA.contains('A'));
+
+    bool sablePossible =
+        fA.contains('AY') || mA.contains('AY');
+
+    if (phantomPossible) {
+      results['Phantom'] = (chocolatePct * 0.25).round();
+      chocolatePct -= results['Phantom']!;
     }
 
-    // CASE 3: no chocolate
-    else {
-      blackPct = colouredPct;
+    if (sablePossible) {
+      results['Sable'] = (chocolatePct * 0.25).round();
+      chocolatePct -= results['Sable']!;
     }
 
-    if (fCarrier && mCarrier) {
-      // 🔥 ADJUSTED TO MATCH REAL BREEDING RESULTS
-      chocolatePct = (colouredPct * 0.75).round();
-      blackPct = colouredPct - chocolatePct;
-    } else if (fCarrier || mCarrier) {
-      chocolatePct = (colouredPct * 0.25).round();
-      blackPct = colouredPct - chocolatePct;
-    } else {
-      blackPct = colouredPct;
+    results[baseColour] = chocolatePct;
+
+    // 🧬 STEP 5 — PARTI (S LOCUS)
+    bool partiPossible = fS.contains('SP') && mS.contains('SP');
+
+    if (partiPossible) {
+      results['Parti'] = 25;
     }
 
-    // 🧬 FINAL OUTPUT
-    if (creamPct > 0) results['Caramel'] = creamPct;
-    if (chocolatePct > 0) results['Chocolate'] = chocolatePct;
-    if (blackPct > 0) results['Black'] = blackPct;
+    // 🧬 STEP 6 — MERLE
+    bool merlePossible = fM.contains('M') || mM.contains('M');
+
+    if (merlePossible) {
+      results['Merle'] = 50;
+    }
+
+    // 🧬 ADD CARAMEL BACK
+    if (creamPct > 0) {
+      results['Caramel'] = creamPct;
+    }
 
     return results;
   }
@@ -1401,5 +1521,4 @@ class _BreedingPlanCardState extends State<BreedingPlanCard> {
 
     return result;
   }
-  //''
 }

@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-
+import 'crm/inbox_page.dart';
 import 'dogs_page.dart';
 import 'people_page.dart';
 import 'breeding/litters_page.dart';
@@ -30,6 +30,8 @@ class DashboardPage extends StatelessWidget {
         mainAxisSpacing: 20,
         children: [
           dashboardTile(context, Icons.pets, 'Dogs', const DogsPage()),
+           // 👇 ADD THIS
+          dashboardTile(context, Icons.mark_email_unread, 'CRM Inbox', const InboxPage()),
           dashboardTile(context, Icons.people, 'People', const PeoplePage()),
           dashboardTile(context, Icons.child_care, 'Litters', const LittersPage()),
           dashboardTile(context, Icons.event_note, 'Daily', DailiesPage()),

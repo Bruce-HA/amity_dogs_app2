@@ -45,7 +45,7 @@ class _DogsPageState extends State<DogsPage> {
     'Retired',
     'Deceased',
     'For Sale',
-    'Sold',
+    'Breeding',
   ];
 
   // ONLY showing CHANGED / FIXED parts to keep this clean

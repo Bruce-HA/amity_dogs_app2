@@ -603,7 +603,7 @@ Widget _dogPreviewFull(String dogAla) {
               colour,
               second_colour,
               nose_colour,
-              coat,
+              coat_type,
               hip_score,
               pennhip,
               ala_grade,
@@ -625,7 +625,7 @@ Widget _dogPreviewFull(String dogAla) {
               colour,
               second_colour,
               nose_colour,
-              coat,
+              coat_type,
               hip_score,
               pennhip,
               ala_grade,
@@ -783,7 +783,7 @@ Widget _dogPreviewFull(String dogAla) {
     return FutureBuilder(
       future: supabase
           .from('dogs')
-          .select('id, dog_name, pet_name, dob, size, colour, has_dna_summary, hip_score, pennhip, ala_grade')
+          .select('id, dog_name, pet_name, dob, size, coat_type, colour, has_dna_summary, hip_score, pennhip, ala_grade')
           .eq('dog_ala', dogAla)
           .maybeSingle(),
       builder: (context, snapshot) {

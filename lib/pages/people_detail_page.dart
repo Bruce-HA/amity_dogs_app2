@@ -308,6 +308,28 @@ class _PeopleDetailPageState extends State<PeopleDetailPage> {
     );
   }
 
+  Widget buildNotesCard() {
+    final notes = person?['notes'];
+
+    if (notes == null || notes.toString().trim().isEmpty) {
+      return const SizedBox();
+    }
+
+    return _Card(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            'Notes',
+            style: TextStyle(fontWeight: FontWeight.w600),
+          ),
+          const SizedBox(height: 8),
+          Text(notes),
+        ],
+      ),
+    );
+  }
+
   // 🔥 OVERVIEW
 
   Widget buildOverview() {
@@ -323,6 +345,8 @@ class _PeopleDetailPageState extends State<PeopleDetailPage> {
         buildAddressCard(),
         const SizedBox(height: 12),
         buildTags(),
+        const SizedBox(height: 12),
+        buildNotesCard(),
       ],
     );
   }

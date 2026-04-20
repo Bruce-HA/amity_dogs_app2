@@ -21,7 +21,7 @@ class _PeopleEditPageState extends State<PeopleEditPage> {
   late TextEditingController businessController;
   late TextEditingController emailController;
   late TextEditingController phoneController;
-
+  late TextEditingController notesController;
   late TextEditingController streetController;
   late TextEditingController suburbController;
   late TextEditingController postcodeController;
@@ -47,35 +47,37 @@ class _PeopleEditPageState extends State<PeopleEditPage> {
     final p = widget.person;
 
     firstNameController =
-        TextEditingController(text: p['first_name_1st']);
+        TextEditingController(text: p['first_name_1st'] ?? '');
     lastNameController =
-        TextEditingController(text: p['last_name_1st']);
+        TextEditingController(text: p['last_name_1st'] ?? '');
     businessController =
-        TextEditingController(text: p['business_name']);
+        TextEditingController(text: p['business_name'] ?? '');
 
     emailController =
-        TextEditingController(text: p['email_1st']);
+        TextEditingController(text: p['email_1st'] ?? '');
     phoneController =
-        TextEditingController(text: p['phone_1st']);
+        TextEditingController(text: p['phone_1st'] ?? '');
 
     streetController =
-        TextEditingController(text: p['street_address']);
+        TextEditingController(text: p['street_address'] ?? '');
     suburbController =
-        TextEditingController(text: p['suburb_address']);
+        TextEditingController(text: p['suburb_address'] ?? '');
     postcodeController =
-        TextEditingController(text: p['postcode_address']);
+        TextEditingController(text: p['postcode_address'] ?? '');
     stateController =
-        TextEditingController(text: p['state_address']);
+        TextEditingController(text: p['state_address'] ?? '');
     firstName2Controller =
-        TextEditingController(text: p['first_name_2nd']);
+        TextEditingController(text: p['first_name_2nd'] ?? '');
     lastName2Controller =
-        TextEditingController(text: p['last_name_2nd']);
+        TextEditingController(text: p['last_name_2nd'] ?? '');
     relationship2Controller =
-        TextEditingController(text: p['relationship_2nd']);
+        TextEditingController(text: p['relationship_2nd'] ?? '');
     email2Controller =
-        TextEditingController(text: p['email_2nd']);
+        TextEditingController(text: p['email_2nd'] ?? '');
     phone2Controller =
-        TextEditingController(text: p['phone_2nd']);
+        TextEditingController(text: p['phone_2nd'] ?? '');
+    notesController = 
+        TextEditingController(text: p['notes'] ?? '');
 
     isBreeder = p['is_breeder'] ?? false;
     isOwner = p['is_owner'] ?? false;
@@ -86,7 +88,7 @@ class _PeopleEditPageState extends State<PeopleEditPage> {
   }
 
   Future<void> save() async {
-    await supabase.from('people').update({
+    final data = {
       'first_name_1st': firstNameController.text,
       'last_name_1st': lastNameController.text,
       'business_name': businessController.text,
@@ -107,9 +109,33 @@ class _PeopleEditPageState extends State<PeopleEditPage> {
       'relationship_2nd': relationship2Controller.text,
       'email_2nd': email2Controller.text,
       'phone_2nd': phone2Controller.text,
-    }).eq('people_id', widget.person['people_id']);
+      'notes': notesController.text,
+    };
 
-    Navigator.pop(context);
+    try {
+      final id = widget.person['people_id'];
+
+      if (id == null || id.toString().isEmpty) {
+        // 🆕 INSERT
+        await supabase.from('people').insert(data);
+      } else {
+        // ✏️ UPDATE
+        await supabase
+            .from('people')
+            .update(data)
+            .eq('people_id', id);
+      }
+
+      if (context.mounted) Navigator.pop(context);
+    } catch (e) {
+      debugPrint('Save error: $e');
+
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error saving person: $e')),
+        );
+      }
+    }
   }
 
   Widget buildSwitch(String label, bool value, Function(bool) onChanged) {
@@ -269,6 +295,20 @@ class _PeopleEditPageState extends State<PeopleEditPage> {
           buildSwitch('Supplier', isSupplier, (v) => isSupplier = v),
 
           const SizedBox(height: 30),
+///
+          const SizedBox(height: 20),
+
+            TextField(
+              controller: notesController,
+              maxLines: 4,
+              decoration: const InputDecoration(
+                labelText: 'Notes',
+                alignLabelWithHint: true,
+                border: OutlineInputBorder(),
+              ),
+            ),
+///
+
 
           ElevatedButton.icon(
             onPressed: save,

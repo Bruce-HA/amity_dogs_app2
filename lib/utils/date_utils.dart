@@ -7,12 +7,25 @@ String calculateDogAge(String? dobString) {
   int years = now.year - dob.year;
   int months = now.month - dob.month;
 
-  if (years == 0) {
-  return "${months}m";
-}
-if (months == 0) {
-  return "${years}y";
-}
-return "${years}y ${months}m";
+  // 🔥 Adjust if birthday hasn’t happened yet this year
+  if (now.day < dob.day) {
+    months -= 1;
+  }
 
+  // 🔥 Fix negative months
+  if (months < 0) {
+    years -= 1;
+    months += 12;
+  }
+
+  // Output formatting
+  if (years <= 0) {
+    return "${months}m";
+  }
+
+  if (months == 0) {
+    return "${years}y";
+  }
+
+  return "${years}y ${months}m";
 }

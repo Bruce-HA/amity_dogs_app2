@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:amity_dogs_app/tabs/photo_viewer_page.dart';
+import 'dart:io';
+import 'package:image/image.dart' as img;
+import 'package:image_picker/image_picker.dart';
 
 class DogPhotosTab extends StatefulWidget {
   final String dogId;
@@ -33,21 +36,32 @@ class _DogPhotosTabState extends State<DogPhotosTab> {
     loadPhotos();
   }
 
-  Future<void> loadPhotos() async {
+  Future<void> uploadPhoto(File originalFile) async {
+    final processed = await processImage(originalFile);
 
-    loading = true;
-    setState(() {});
+    final fileId = DateTime.now().millisecondsSinceEpoch.toString();
 
-    final response = await supabase
-        .from('dog_photos')
-        .select()
-        .eq('dog_id', widget.dogId)
-        .order('created_at', ascending: false);
+    final fullPath = "${widget.dogId}/photos/$fileId.webp";
+    final thumbPath = "${widget.dogId}/thumbs/$fileId.webp";
 
-    photos = List<Map<String, dynamic>>.from(response);
+    // Upload full image
+    await supabase.storage
+        .from('dog_files')
+        .upload(fullPath, processed['full']!);
 
-    loading = false;
-    setState(() {});
+    // Upload thumbnail
+    await supabase.storage
+        .from('dog_files')
+        .upload(thumbPath, processed['thumb']!);
+
+    // Save to DB
+    await supabase.from('dog_photos').insert({
+      'dog_id': widget.dogId,
+      'dog_ala': widget.dogAla,
+      'url': fullPath,
+      'thumb_url': thumbPath,
+      'rotation': 0,
+    });
   }
 
   String getFullUrl(String fileName) {
@@ -61,6 +75,72 @@ class _DogPhotosTabState extends State<DogPhotosTab> {
 
     return url;
   }
+  Future<void> loadPhotos() async {
+    setState(() {
+      loading = true;
+    });
+
+    final response = await supabase
+        .from('dog_photos')
+        .select()
+        .eq('dog_id', widget.dogId)
+        .order('created_at', ascending: false);
+
+    setState(() {
+      photos = List<Map<String, dynamic>>.from(response);
+      loading = false;
+    });
+  }
+
+  Future<void> pickAndUploadPhoto() async {
+    final picker = ImagePicker();
+
+    final picked = await picker.pickImage(
+      source: ImageSource.gallery,
+    );
+
+    if (picked == null) return;
+
+    final file = File(picked.path);
+
+    await uploadPhoto(file);
+
+    // refresh grid after upload
+    loadPhotos();
+  }
+
+
+  Future<Map<String, File>> processImage(File file) async {
+    final bytes = await file.readAsBytes();
+    final original = img.decodeImage(bytes)!;
+
+    // Resize full (max 1200)
+    final full = img.copyResize(
+      original,
+      width: original.width > 1200 ? 1200 : original.width,
+    );
+
+    // Resize thumbnail (300)
+    final thumb = img.copyResize(original, width: 300);
+
+    // Convert to WebP
+    final fullWebp = img.encodeWebP(full, quality: 85);
+    final thumbWebp = img.encodeWebP(thumb, quality: 75);
+
+    final dir = await Directory.systemTemp.createTemp();
+
+    final fullFile = File('${dir.path}/full.webp')
+      ..writeAsBytesSync(fullWebp);
+
+    final thumbFile = File('${dir.path}/thumb.webp')
+      ..writeAsBytesSync(thumbWebp);
+
+    return {
+      'full': fullFile,
+      'thumb': thumbFile,
+    };
+  }
+
 
   Widget buildPhotoCard(Map<String, dynamic> photo) {
 

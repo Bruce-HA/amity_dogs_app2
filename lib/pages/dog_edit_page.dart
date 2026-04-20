@@ -20,6 +20,11 @@ class _DogEditPageState extends State<DogEditPage> {
   late TextEditingController microchipController;
   late TextEditingController dobController;
   late TextEditingController spayDueController;
+  late TextEditingController pedigreeController;
+  late TextEditingController coatController;
+  late TextEditingController sizeController;
+  late TextEditingController colourController;
+  late TextEditingController ecgController;
 
   String? status;
   String? desexed;
@@ -32,11 +37,11 @@ class _DogEditPageState extends State<DogEditPage> {
     'Pending',
     'Pet',
     'Active',
+    'Breeding',
     'Guardian',
     'Retired',
     'Deceased',
     'Forsale',
-    'Sold',
     'Unknown',
   ];
 
@@ -52,15 +57,30 @@ class _DogEditPageState extends State<DogEditPage> {
     super.initState();
 
     nameController =
-        TextEditingController(text: widget.dog['dog_name'] ?? '');
+        TextEditingController(text: widget.dog['dog_name']?.toString() ?? '');
     alaController =
-        TextEditingController(text: widget.dog['dog_ala'] ?? '');
+        TextEditingController(text: widget.dog['dog_ala']?.toString() ?? '');
     microchipController =
-        TextEditingController(text: widget.dog['microchip'] ?? '');
+        TextEditingController(text: widget.dog['microchip']?.toString() ?? '');
     dobController =
-        TextEditingController(text: widget.dog['dob'] ?? '');
+    TextEditingController(text: widget.dog['dob']?.toString() ?? '');
+
     spayDueController =
-        TextEditingController(text: widget.dog['spay_due'] ?? '');
+        TextEditingController(text: widget.dog['spay_due']?.toString() ?? '');
+    pedigreeController =
+        TextEditingController(text: widget.dog['pedigree_number']?.toString() ?? '');
+
+    coatController =
+        TextEditingController(text: widget.dog['coat']?.toString() ?? '');
+
+    sizeController =
+        TextEditingController(text: widget.dog['size']?.toString() ?? '');
+
+    colourController =
+        TextEditingController(text: widget.dog['colour']?.toString() ?? '');
+
+    ecgController =
+        TextEditingController(text: widget.dog['ecg']?.toString() ?? '');
 
     status = widget.dog['status'];
     desexed = widget.dog['desexed'] ?? 'Unknown';
@@ -85,6 +105,11 @@ class _DogEditPageState extends State<DogEditPage> {
           breeder != null ? breeder!['people_id'] : null,
       'owner_person_id':
           owner != null ? owner!['people_id'] : null,
+      'pedigree_number': pedigreeController.text,
+      'coat': coatController.text,
+      'size': sizeController.text,
+      'colour': colourController.text,
+      'ecg': ecgController.text,
     }).eq('id', widget.dog['id']);
 
     if (!mounted) return;
@@ -219,7 +244,50 @@ class _DogEditPageState extends State<DogEditPage> {
                   _dec("Microchip", widget.dog['microchip']),
             ),
 
+            const SizedBox(height: 20),
+
+            Text("📋 Identification", style: TextStyle(fontWeight: FontWeight.w600)),
+
+            const SizedBox(height: 10),
+
+            TextField(
+              controller: pedigreeController,
+              decoration: _dec("Pedigree Number", null),
+            ),
+
+            const SizedBox(height: 20),
+
+            Text("🧬 Genetics", style: TextStyle(fontWeight: FontWeight.w600)),
+
+            const SizedBox(height: 10),
+
+            TextField(
+              controller: coatController,
+              decoration: _dec("Coat", null),
+            ),
+
             const SizedBox(height: 12),
+
+            TextField(
+              controller: sizeController,
+              decoration: _dec("Size", null),
+            ),
+
+            const SizedBox(height: 12),
+
+            TextField(
+              controller: colourController,
+              decoration: _dec("Colour", null),
+            ),
+
+            const SizedBox(height: 12),
+
+            TextField(
+              controller: ecgController,
+              decoration: _dec("ECG", null),
+            ),
+
+                        const SizedBox(height: 12),
 
             TextField(
               controller: dobController,
@@ -231,7 +299,7 @@ class _DogEditPageState extends State<DogEditPage> {
             const SizedBox(height: 20),
 
             DropdownButtonFormField<String>(
-              value: status,
+              value: statuses.contains(status) ? status : null,  
               items: statuses
                   .map((s) =>
                       DropdownMenuItem(value: s, child: Text(s)))

@@ -15,8 +15,13 @@ Future<void> main() async {
   await Supabase.initialize(
     url: dotenv.env['SUPABASE_URL']!,
     anonKey: dotenv.env['SUPABASE_ANON_KEY']!,
+   );
+/*
+  await Supabase.initialize(
+    url: 'https://phkwizyrpfzoecugpshb.supabase.co',
+    anonKey: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InBoa3dpenlycGZ6b2VjdWdwc2hiIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc2OTM2NjI4MiwiZXhwIjoyMDg0OTQyMjgyfQ.XF9Mi_Pzp-F2AQflrFEbuftf1rqavZWsLUwRoS6XpHA',
   );
-
+*/
   runApp(
     ChangeNotifierProvider(
       create: (_) => ThemeProvider(),

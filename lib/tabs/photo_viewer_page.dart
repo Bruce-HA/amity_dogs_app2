@@ -49,6 +49,16 @@ class _PhotoViewerPageState extends State<PhotoViewerPage> {
     }
   }
 
+  @override
+    void initState() {
+      super.initState();
+
+      final rotationFromDb = widget.photo['rotation'] ?? 0;
+
+      currentRotation = rotationFromDb.toDouble();
+    }
+
+
   Future<void> editDescription() async {
 
     final controller = TextEditingController(
@@ -98,6 +108,23 @@ class _PhotoViewerPageState extends State<PhotoViewerPage> {
     setState(() {
       widget.photo['description'] = result;
     });
+  }
+  double currentRotation = 0;
+
+  Future<void> rotatePhoto() async {
+    final newRotation = (currentRotation + 90) % 360;
+
+    setState(() {
+      currentRotation = newRotation;
+    });
+
+    await supabase
+        .from('dog_photos')
+        .update({'rotation': newRotation})
+        .eq('id', widget.photo['id']);
+
+    // keep local data in sync
+    widget.photo['rotation'] = newRotation;
   }
 
   Future<void> sharePhoto() async {
@@ -154,6 +181,12 @@ class _PhotoViewerPageState extends State<PhotoViewerPage> {
           ),
 
           IconButton(
+            icon: const Icon(Icons.rotate_right),
+            onPressed: rotatePhoto,
+          ),
+
+
+          IconButton(
             icon: const Icon(Icons.delete),
             onPressed: deletePhoto,
           ),
@@ -163,7 +196,13 @@ class _PhotoViewerPageState extends State<PhotoViewerPage> {
 
       body: Center(
         child: InteractiveViewer(
-          child: Image.network(widget.imageUrl),
+          child: Transform.rotate(
+          angle: currentRotation * 3.1415926535 / 180,
+          child: Image.network(
+            widget.imageUrl,
+            key: ValueKey('${widget.imageUrl}-$currentRotation'),
+          ),
+        ),
         ),
       ),
 

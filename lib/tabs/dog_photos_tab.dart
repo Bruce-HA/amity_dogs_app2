@@ -4,6 +4,8 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:reorderable_grid_view/reorderable_grid_view.dart';
 import 'package:amity_dogs_app/tabs/photo_viewer_page.dart';
+import 'package:image_picker/image_picker.dart';
+import 'package:image/image.dart' as img;
 
 class DogPhotosTab extends StatefulWidget {
   final String dogId;
@@ -31,6 +33,7 @@ class _DogPhotosTabState extends State<DogPhotosTab> {
   void initState() {
     super.initState();
     loadPhotos();
+    print("DOG ALA: ${widget.dogAla}");
   }
 
   /*
@@ -44,9 +47,14 @@ class _DogPhotosTabState extends State<DogPhotosTab> {
 
     final response = await supabase
         .from('dog_photos')
-        .select()
-        .eq('dog_id', widget.dogId)
-        .order('display_order', ascending: true);
+        .insert({
+          'dog_id': widget.dogId,
+          'dog_ala': widget.dogAla,
+          'url': "$id.webp",
+        })
+        .select();
+
+  print("INSERT RESPONSE: $response");
 
     photos = List<Map<String, dynamic>>.from(response);
 
@@ -112,6 +120,7 @@ class _DogPhotosTabState extends State<DogPhotosTab> {
   UPLOAD PHOTO
   =============================
   */
+  final id = DateTime.now().millisecondsSinceEpoch.toString();
 
   Future<void> uploadPhoto() async {
     final result = await FilePicker.platform.pickFiles(
@@ -132,13 +141,31 @@ class _DogPhotosTabState extends State<DogPhotosTab> {
           storagePath,
           file,
         );
-
-    await supabase.from('dog_photos').insert({
+    print({
       'dog_id': widget.dogId,
-      'url': fileName,
+      'dog_ala': widget.dogAla,
+      'url': "$id.webp",
+    });
+
+  
+
+    
+
+    final data = {
+      'dog_id': widget.dogId,
+      'dog_ala': widget.dogAla.toString(),
+      'file_name': "$id.webp",
+      'url': "$id.webp",
+      'thumb_url': "$id.webp",
       'description': '',
       'is_hero': false,
-    });
+    };
+
+    print("INSERTING: $data"); // 👈 IMPORTANT
+
+    await supabase
+        .from('dog_photos')
+        .insert(data);
 
     await loadPhotos();
   }
