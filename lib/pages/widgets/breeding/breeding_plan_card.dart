@@ -1407,62 +1407,55 @@ class _BreedingPlanCardState extends State<BreedingPlanCard> {
     print("🧪 E CHECK: ${f['E']} | ${m['E']}");
 
     String clean(String? v) =>
-        (v ?? '').toLowerCase().replaceAll(' ', '').replaceAll('\n', '');
+      (v ?? '').toLowerCase().replaceAll(' ', '').replaceAll('\n', '');
 
-    final fE = clean(f['E']);
-    final mE = clean(m['E']);
-    final fB = clean(f['B']);
-    final mB = clean(m['B']);
-    final fA = clean(f['A']);
-    final mA = clean(m['A']);
+  final fE = clean(f['E']);
+  final mE = clean(m['E']);
+  final fB = clean(f['B']);
+  final mB = clean(m['B']);
+  final fA = clean(f['A']);
+  final mA = clean(m['A']);
 
-    print("🧪 E LOCUS CHECK → Female: $fE | Male: $mE");
+  // ✅ DEFINE RESULTS FIRST
+  final results = <String, int>{};
 
-    // 🚨 HARD STOP — THIS FIXES YOUR BUG
-    if (fE == 'e/e' && mE == 'e/e') {
-      print("✅ FORCED RESULT: 100% Caramel");
-      return {'Caramel': 100};
-    }
+  // ✅ NOW SAFE TO USE
+  final bothEE = (fE == 'e/e' && mE == 'e/e');
+  final chocolate = (fB == 'b/b' && mB == 'b/b');
+  final phantomPossible = (fA.contains('at') && mA.contains('at'));
 
-    final results = <String, int>{};
+    if (bothEE) {
+    if (chocolate) {
+      results['Chocolate'] = 60;
 
-    int creamPct = 0;
-    int chocolatePct = 0;
-    int blackPct = 0;
-    int phantomPct = 0;
-
-    // 🧬 Cream logic
-    if (fE != 'e/e' && mE != 'e/e') {
-      creamPct = 25;
+      if (phantomPossible) {
+        results['Phantom'] = 25;
+        results['Caramel'] = 15;
+      } else {
+        results['Caramel'] = 40;
+      }
     } else {
-      creamPct = 50;
+      results['Caramel'] = 75;
+
+      if (phantomPossible) {
+        results['Phantom'] = 25;
+      }
     }
 
-    int colouredPct = 100 - creamPct;
-
-    // 🧬 Chocolate
-    if (fB == 'b/b' && mB == 'b/b') {
-      chocolatePct = colouredPct;
-    } else if (fB.contains('b') && mB.contains('b')) {
-      chocolatePct = (colouredPct * 0.25).round();
+  } else {
+    if (chocolate) {
+      results['Chocolate'] = 50;
     }
 
-    blackPct = colouredPct - chocolatePct;
-
-    // 🧬 Phantom
-    if (fA.contains('at') && mA.contains('at')) {
-      phantomPct = (colouredPct * 0.25).round();
+    if (phantomPossible) {
+      results['Phantom'] = 25;
     }
 
-    // 🧬 FINAL
-    if (creamPct > 0) results['Caramel'] = creamPct;
-    if (chocolatePct > 0) results['Chocolate'] = chocolatePct;
-    if (phantomPct > 0) results['Phantom'] = phantomPct;
-    if (blackPct > 0) results['Black'] = blackPct;
-
-    return results;
+    results['Black'] = 25;
   }
-  //ll
+
+  return results;
+  }
   //''
   Map<String, String> _parseOrivet(String text) {
     final result = <String, String>{};

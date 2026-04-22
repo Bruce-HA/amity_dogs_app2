@@ -35,8 +35,13 @@ class DNAService {
     print("TRAITS TEXT:");
     print(traitsText);
     
-    final loci = _parseOrivet(traitsText);
+    final parsed = _parseOrivet(traitsText);
+
+    final loci = parsed['loci'] as Map<String, String>;
+    final String? testDate = parsed['test_date'];
+
     print("LOCI FOUND: $loci");
+    print("📅 TEST DATE: $testDate");
 
     final diseases = _extractDiseases(diseaseText);
     final tests = _extractAllTests(diseaseText);
@@ -50,12 +55,48 @@ class DNAService {
 
     await rebuildDNABank(dogId, loci, traitsText);
 
+    await supabase.from('dna_reports').upsert({
+      'dog_id': dogId,
+      'lab': 'Orivet',
+      'report_type': 'summary',
+      'test_date': testDate,
+      'created_at': DateTime.now().toIso8601String(),
+    }, onConflict: 'dog_id,report_type');
+
     } finally {
   _running.remove(dogId);
 }
   
   }
+////
+  String? _formatDate(String raw) {
+    try {
+      // remove ordinal (14th → 14)
+      final cleaned = raw
+          .replaceAll(RegExp(r'(st|nd|rd|th)'), '')
+          .trim();
 
+      final parts = cleaned.split(' ');
+      if (parts.length != 3) return null;
+
+      final day = parts[0].padLeft(2, '0');
+      final monthStr = parts[1].toLowerCase();
+      final year = parts[2];
+
+      const months = {
+        'jan': '01', 'feb': '02', 'dec': '12'
+      };
+
+      final month = months[monthStr.substring(0, 3)];
+      if (month == null) return null;
+
+      return "$year-$month-$day"; // ISO format
+    } catch (_) {
+      return null;
+    }
+  }
+///
+///
   // ===============================
   // PDF → TEXT
   // ===============================
@@ -73,7 +114,7 @@ class DNAService {
 
   // ===============================
   // LOCI PARSER
-  Map<String, String> _parseOrivet(String text) {
+  Map<String, dynamic> _parseOrivet(String text) {
     final result = <String, String>{};
 
     // 🔥 STEP 1 — CLEAN OCR SPACING FIRST
@@ -88,6 +129,10 @@ class DNAService {
 
         .replaceAll(RegExp(r'b\s+b'), 'b/b')
         .replaceAll(RegExp(r'b\s*:\s*b\s*/\s*b'), 'b/b')
+        .replaceAll(RegExp(r'\ba\s*t\b'), 'at')
+        .replaceAll(RegExp(r'\ba\s*y\b'), 'ay')
+        .replaceAll(RegExp(r'\bk\s*b\b'), 'kb')
+        .replaceAll(RegExp(r'\bk\s*y\b'), 'ky')
 
         .replaceAll(RegExp(r'k\s*y\s*/\s*k\s*y'), 'ky/ky')
         .replaceAll(RegExp(r'k\s*b\s*/\s*k\s*y'), 'kb/ky')
@@ -110,7 +155,44 @@ class DNAService {
       if (a1 != null && a2 != null) {
         result['B'] = '$a1/$a2';
       }
-      print("🟤 B MATCH: ${bMatch?.group(0)}");
+
+      print("🟤 B MATCH: ${bMatch.group(0)}");
+    }
+
+  //
+    // 📅 TEST DATE EXTRACTION
+    String? testDate;
+
+    final dateMatch = RegExp(
+      r'date of test\s*:\s*([0-9]{1,2}\w*\s+[a-z]{3,}\s+[0-9]{4})',
+      caseSensitive: false,
+    ).firstMatch(text);
+
+    if (dateMatch != null) {
+      final raw = dateMatch.group(1);
+
+      if (raw != null) {
+        testDate = _formatDate(raw);
+      }
+    }
+
+print("📅 TEST DATE: $testDate");
+  //
+    // 🟤 A LOCUS — MUST BE OUTSIDE
+    final aMatch = RegExp(
+      r'a\s*locus[\s\S]{0,80}?(ay|at|a)\s*[/\s]\s*(ay|at|a)',
+      caseSensitive: false,
+    ).firstMatch(clean);
+
+    if (aMatch != null) {
+      final a1 = aMatch.group(1);
+      final a2 = aMatch.group(2);
+
+      if (a1 != null && a2 != null) {
+        result['A'] = '$a1/$a2';
+      }
+
+      print("🟤 A MATCH: ${aMatch.group(0)}");
     }
 
 
@@ -135,7 +217,10 @@ class DNAService {
     print(clean.contains(' b '));
     print(clean.substring(0, 500));
 
-    return result;
+    return {
+      'loci': result,
+      'test_date': testDate,
+    };
     }
 
   // ===============================

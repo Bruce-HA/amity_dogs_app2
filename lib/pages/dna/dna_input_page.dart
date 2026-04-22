@@ -49,6 +49,30 @@ class _DnaInputPageState extends State<DnaInputPage> {
       selectedNose = data['nose_colour'];
     }
 
+    // 🐽 AUTO-FILL FROM DNA IF EMPTY
+    if (selectedNose == null) {
+      final dna = await supabase
+          .from('dna_bank')
+          .select()
+          .eq('dog_id', widget.dogId);
+
+      final b = dna.firstWhere(
+        (l) => l['locus'] == 'B',
+        orElse: () => {},
+      );
+
+      if (b.isNotEmpty) {
+        final a1 = (b['allele_1'] ?? '').toLowerCase();
+        final a2 = (b['allele_2'] ?? '').toLowerCase();
+
+        if (a1 == 'b' && a2 == 'b') {
+          selectedNose = 'Liver';
+        } else {
+          selectedNose = 'Black';
+        }
+      }
+    }
+
     setState(() => isLoading = false);
   }
 
@@ -134,7 +158,7 @@ class _DnaInputPageState extends State<DnaInputPage> {
     await supabase.from('dogs').update({
       'colour': selectedPrimary,
       'second_colour': selectedSecondary,
-      'nose_colour': selectedNose,
+      'nose_colour': selectedNose?.toLowerCase(),
     }).eq('id', widget.dogId);
 
     if (mounted) {
@@ -169,7 +193,7 @@ class _DnaInputPageState extends State<DnaInputPage> {
         child: Column(
           children: [
             ElevatedButton(
-              onPressed: _uploadDnaSummary,
+              onPressed: isUploading ? null : _uploadDnaSummary,
               child: isUploading
                   ? const CircularProgressIndicator()
                   : const Text("Upload DNA Summary"),
@@ -185,14 +209,22 @@ class _DnaInputPageState extends State<DnaInputPage> {
               "None","Abstract","Phantom","Sable"
             ], (v) => setState(() => selectedSecondary = v)),
 
+            const SizedBox(height: 16),
+
+            _dropdown("Nose Colour", selectedNose, [
+              "Black",
+              "Liver",
+            ], (v) => setState(() => selectedNose = v)),
+
             const SizedBox(height: 20),
 
-            ElevatedButton(
-              onPressed: saveData,
-              child: isSaving
-                  ? const CircularProgressIndicator()
-                  : const Text("Save"),
-            ),
+            if (!isUploading)
+              ElevatedButton(
+                onPressed: saveData,
+                child: isSaving
+                    ? const CircularProgressIndicator()
+                    : const Text("Save"),
+              ),
 
             const SizedBox(height: 20),
 

@@ -16,6 +16,10 @@ class DnaTab extends StatefulWidget {
 
 class _DnaTabState extends State<DnaTab> {
   final supabase = Supabase.instance.client;
+  final noseColourController = TextEditingController();
+  final coatColourController = TextEditingController();
+  final secondCoatController = TextEditingController();
+  final coatTypeController = TextEditingController();
 
   String extractPdfText(Uint8List bytes) {
     final document = PdfDocument(inputBytes: bytes);
@@ -161,6 +165,24 @@ class _DnaTabState extends State<DnaTab> {
           .eq('dog_id', widget.dogId);
 
       loci = List<Map<String, dynamic>>.from(response);
+
+      // 🐽 AUTO-FILL NOSE COLOUR FROM B LOCUS
+      final b = loci.firstWhere(
+        (l) => l['locus'] == 'B',
+        orElse: () => {},
+      );
+
+      if (b.isNotEmpty) {
+        final a1 = (b['allele_1'] ?? '').toLowerCase();
+        final a2 = (b['allele_2'] ?? '').toLowerCase();
+
+        if (a1 == 'b' && a2 == 'b') {
+          noseColourController.text = 'liver';
+        } else {
+          noseColourController.text = 'black';
+        }
+      }
+
     } else {
       loci = [];
     }
@@ -242,6 +264,70 @@ class _DnaTabState extends State<DnaTab> {
                               subtitle: Text(h['result'] ?? ''),
                             ),
                           )),
+
+                          const SizedBox(height: 20),
+
+                          // 🐕 Phenotype
+                          const Text(
+                            "Phenotype",
+                            style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                          ),
+
+                          Card(
+                            child: Padding(
+                              padding: const EdgeInsets.all(12),
+                              child: Column(
+                                children: [
+
+                                  TextField(
+                                    controller: noseColourController,
+                                    decoration: const InputDecoration(
+                                      labelText: "Nose Colour",
+                                    ),
+                                  ),
+
+                                  TextField(
+                                    controller: coatColourController,
+                                    decoration: const InputDecoration(
+                                      labelText: "Coat Colour",
+                                    ),
+                                  ),
+
+                                  TextField(
+                                    controller: secondCoatController,
+                                    decoration: const InputDecoration(
+                                      labelText: "Secondary Coat Colour",
+                                    ),
+                                  ),
+
+                                  TextField(
+                                    controller: coatTypeController,
+                                    decoration: const InputDecoration(
+                                      labelText: "Coat Type",
+                                    ),
+                                  ),
+
+                                  const SizedBox(height: 12),
+
+                                  ElevatedButton(
+                                    onPressed: () async {
+                                      await supabase.from('dogs').update({
+                                        'nose_colour': noseColourController.text,
+                                        'coat_colour': coatColourController.text,
+                                        'second_coat_colour': secondCoatController.text,
+                                        'coat_type': coatTypeController.text,
+                                      }).eq('id', widget.dogId);
+
+                                      ScaffoldMessenger.of(context).showSnackBar(
+                                        const SnackBar(content: Text("Saved")),
+                                      );
+                                    },
+                                    child: const Text("Save Phenotype"),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
                     ],
                   );
                 },
