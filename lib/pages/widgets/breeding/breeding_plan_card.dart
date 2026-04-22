@@ -7,6 +7,7 @@ import 'dart:math';
 import 'package:amity_dogs_app/pages/breeding/trial_mating_page.dart';
 import '../../mating/mating_page.dart';
 import '../../../utils/display_helpers.dart';
+import '../../../services/genetics_service.dart';
 
 
 class BreedingPlanCard extends StatefulWidget {
@@ -60,46 +61,11 @@ class _BreedingPlanCardState extends State<BreedingPlanCard> {
       return _fallbackImage();
     }
 
-    return FutureBuilder(
-      future: Supabase.instance.client
-          .from('dog_photos')
-          .select('url, is_hero')
-          .eq('dog_id', dogId),
-      builder: (context, snapshot) {
-        final photos =
-            (snapshot.data as List?)?.cast<Map<String, dynamic>>();
-
-        if (photos == null || photos.isEmpty) {
-          return _fallbackImage();
-        }
-
-        final hero = photos.firstWhere(
-          (p) => p['is_hero'] == true,
-          orElse: () => photos.first,
-        );
-
-        final rawUrl = hero['url'];
-
-        if (rawUrl == null || rawUrl.isEmpty) {
-          return _fallbackImage();
-        }
-
-        final path = '$dogAla/photos/$rawUrl';
-
-        final publicUrl = Supabase.instance.client.storage
-            .from('dog_files')
-            .getPublicUrl(path);
-
-        return ClipRRect(
-          borderRadius: BorderRadius.circular(12),
-          child: Image.network(
-            publicUrl,
-            fit: BoxFit.cover,
-            width: 90,
-            height: 90,
-          ),
-        );
-      },
+    return AppDogImage(
+      dogId: dogId,
+      dogAla: dogAla,
+      size: 56,
+      radius: 12,
     );
   }
 
@@ -695,9 +661,9 @@ class _BreedingPlanCardState extends State<BreedingPlanCard> {
                         'status': 'planned',
                       })
                       .select()
-                      .single();
+                      .maybeSingle();;
 
-                  final matingId = response['id'];
+                  final matingId = response?['id'];
 
                   // ✅ FEEDBACK
                   ScaffoldMessenger.of(context).showSnackBar(
@@ -1210,24 +1176,63 @@ class _BreedingPlanCardState extends State<BreedingPlanCard> {
           ),
         ),
 
-        // ✅ NEW — THIS IS WHAT YOU WANT
         FutureBuilder(
           future: Future.wait([
+            _getDNA(female['id']),
+            _getDNA(male['id']),
             _getNose(female['id']),
             _getNose(male['id']),
           ]),
           builder: (context, snapshot) {
             if (!snapshot.hasData) {
-              return const Text("Loading nose...");
+              return const Text("Loading...");
             }
 
-            final fNose = snapshot.data![0];
-            final mNose = snapshot.data![1];
+            final fDNA = _dnaToMap(snapshot.data![0] as List<Map<String, dynamic>>);
+            final mDNA = _dnaToMap(snapshot.data![1] as List<Map<String, dynamic>>);
 
-            return _row(
-              "Nose",
-              noseBadge(fNose),
-              noseBadge(mNose),
+            final fNose = snapshot.data![2];
+            final mNose = snapshot.data![3];
+
+            final warnings = GeneticsService.breedingWarnings(fDNA, mDNA);
+
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+
+                _row(
+                  "Nose",
+                  noseBadge(fNose as String?),
+                  noseBadge(mNose as String?),
+                ),
+
+                const SizedBox(height: 10),
+
+                if (warnings.isNotEmpty)
+                  Container(
+                    width: double.infinity,
+                    margin: const EdgeInsets.only(bottom: 12),
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: Colors.red.shade100,
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: Colors.red),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: warnings.map((w) {
+                        return Text(
+                          w,
+                          style: const TextStyle(
+                            color: Colors.red,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        );
+                      }).toList(),
+                    ),
+                  ),
+
+              ],
             );
           },
         ),
@@ -1237,25 +1242,17 @@ class _BreedingPlanCardState extends State<BreedingPlanCard> {
           Text(female['ala_grade']?.toString() ?? '-'),
           Text(male['ala_grade']?.toString() ?? '-'),
         ),
+
         _row(
           "Coat",
           Text(female['coat_type']?.toString() ?? '-'),
           Text(male['coat_type']?.toString() ?? '-'),
         ),
-        _row(
-          "Hips",
-          Text(female['hip_score']?.toString() ?? '-'),
-          Text(male['hip_score']?.toString() ?? '-'),
-        ),
-        _row(
-          "PennHIP",
-          Text(female['pennhip']?.toString() ?? '-'),
-          Text(male['pennhip']?.toString() ?? '-'),
-        ),
       ],
     );
   }
 //;;
+
   // ==============================
   // 🧬 DNA BANK HELPERS
   // ==============================
@@ -1323,7 +1320,7 @@ class _BreedingPlanCardState extends State<BreedingPlanCard> {
     );
   }
   //..
-  
+    
   // ==============================
   // 🧬 DNA PARSE + COLOUR ENGINE
   // ==============================
@@ -1371,6 +1368,7 @@ class _BreedingPlanCardState extends State<BreedingPlanCard> {
 
           final fDNA = _dnaToMap(snapshot.data![0] as List<Map<String, dynamic>>);
           final mDNA = _dnaToMap(snapshot.data![1] as List<Map<String, dynamic>>);
+          final warnings = GeneticsService.breedingWarnings(fDNA, mDNA);
 
           if (fDNA.isEmpty || mDNA.isEmpty) {
             return const Text("DNA required for colour prediction");
@@ -1402,37 +1400,39 @@ class _BreedingPlanCardState extends State<BreedingPlanCard> {
     Map<String, String> f,
     Map<String, String> m,
   ) {
+    // ✅ INSIDE THE CURLY BRACKETS
+
+    print("🧬 FEMALE DNA: $f");
+    print("🧬 MALE DNA: $m");
+    print("🧪 E CHECK: ${f['E']} | ${m['E']}");
+
+    String clean(String? v) =>
+        (v ?? '').toLowerCase().replaceAll(' ', '').replaceAll('\n', '');
+
+    final fE = clean(f['E']);
+    final mE = clean(m['E']);
+    final fB = clean(f['B']);
+    final mB = clean(m['B']);
+    final fA = clean(f['A']);
+    final mA = clean(m['A']);
+
+    print("🧪 E LOCUS CHECK → Female: $fE | Male: $mE");
+
+    // 🚨 HARD STOP — THIS FIXES YOUR BUG
+    if (fE == 'e/e' && mE == 'e/e') {
+      print("✅ FORCED RESULT: 100% Caramel");
+      return {'Caramel': 100};
+    }
+
     final results = <String, int>{};
 
-    String norm(String? v) => (v ?? '').toUpperCase();
-
-    final fE = norm(f['E']);
-    final mE = norm(m['E']);
-
-    final fK = norm(f['K']);
-    final mK = norm(m['K']);
-
-    final fB = norm(f['B']);
-    final mB = norm(m['B']);
-
-    final fA = norm(f['A']);
-    final mA = norm(m['A']);
-
-    final fS = norm(f['S']);
-    final mS = norm(m['S']);
-
-    final fM = norm(f['M']);
-    final mM = norm(m['M']);
-
-    // 🧬 STEP 1 — E LOCUS
-    bool f_ee = !fE.contains('E');
-    bool m_ee = !mE.contains('E');
-
     int creamPct = 0;
+    int chocolatePct = 0;
+    int blackPct = 0;
+    int phantomPct = 0;
 
-    if (f_ee && m_ee) {
-      return {'Caramel': 100};
-    } else if (fE.contains('E') && mE.contains('E')) {
+    // 🧬 Cream logic
+    if (fE != 'e/e' && mE != 'e/e') {
       creamPct = 25;
     } else {
       creamPct = 50;
@@ -1440,59 +1440,25 @@ class _BreedingPlanCardState extends State<BreedingPlanCard> {
 
     int colouredPct = 100 - creamPct;
 
-    // 🧬 STEP 2 — K LOCUS
-    bool dominantBlack = fK.contains('KB') || mK.contains('KB');
-
-    if (dominantBlack) {
-      results['Black'] = colouredPct;
-      if (creamPct > 0) results['Caramel'] = creamPct;
-      return results;
+    // 🧬 Chocolate
+    if (fB == 'b/b' && mB == 'b/b') {
+      chocolatePct = colouredPct;
+    } else if (fB.contains('b') && mB.contains('b')) {
+      chocolatePct = (colouredPct * 0.25).round();
     }
 
-    // 🧬 STEP 3 — B LOCUS
-    bool bothChocolate = fB == 'B/B' && mB == 'B/B';
-    int chocolatePct = bothChocolate ? colouredPct : colouredPct;
+    blackPct = colouredPct - chocolatePct;
 
-    String baseColour = bothChocolate ? 'Chocolate' : 'Black';
-
-    // 🧬 STEP 4 — A LOCUS (PATTERN)
-    bool phantomPossible =
-        (fA.contains('AT') || fA.contains('A')) &&
-        (mA.contains('AT') || mA.contains('A'));
-
-    bool sablePossible =
-        fA.contains('AY') || mA.contains('AY');
-
-    if (phantomPossible) {
-      results['Phantom'] = (chocolatePct * 0.25).round();
-      chocolatePct -= results['Phantom']!;
+    // 🧬 Phantom
+    if (fA.contains('at') && mA.contains('at')) {
+      phantomPct = (colouredPct * 0.25).round();
     }
 
-    if (sablePossible) {
-      results['Sable'] = (chocolatePct * 0.25).round();
-      chocolatePct -= results['Sable']!;
-    }
-
-    results[baseColour] = chocolatePct;
-
-    // 🧬 STEP 5 — PARTI (S LOCUS)
-    bool partiPossible = fS.contains('SP') && mS.contains('SP');
-
-    if (partiPossible) {
-      results['Parti'] = 25;
-    }
-
-    // 🧬 STEP 6 — MERLE
-    bool merlePossible = fM.contains('M') || mM.contains('M');
-
-    if (merlePossible) {
-      results['Merle'] = 50;
-    }
-
-    // 🧬 ADD CARAMEL BACK
-    if (creamPct > 0) {
-      results['Caramel'] = creamPct;
-    }
+    // 🧬 FINAL
+    if (creamPct > 0) results['Caramel'] = creamPct;
+    if (chocolatePct > 0) results['Chocolate'] = chocolatePct;
+    if (phantomPct > 0) results['Phantom'] = phantomPct;
+    if (blackPct > 0) results['Black'] = blackPct;
 
     return results;
   }

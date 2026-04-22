@@ -136,16 +136,17 @@ class _DogBreedingTabState extends State<DogBreedingTab> {
         .from('dogs')
         .select('dog_ala, sex')
         .eq('id', widget.dogId)
-        .single();
-
-
-print("SEX VALUE → '${dogResult['sex']}'"); // 👈 ADD THIS LINE
+        .maybeSingle();
 
     if (dogResult == null) return;
 
-    final dogAla = dogResult['dog_ala'];
-    final currentAla = dogResult['dog_ala'];
-    final sex = dogResult['sex'];
+    final dog = dogResult;
+
+    final String currentAla = dog['dog_ala'] as String;
+    final String sex = dog['sex'] as String;
+
+    final String dogAla = dog['dog_ala'] as String;
+
     final damLitters = await supabase
         .from('litters')
         .select('male_count, female_count')
@@ -181,7 +182,11 @@ print("SEX VALUE → '${dogResult['sex']}'"); // 👈 ADD THIS LINE
         .from('dogs')
         .select('dog_ala, sex')
         .eq('id', widget.dogId)
-        .single();
+        .maybeSingle();
+
+    if (dogResult == null) {
+      throw Exception("Dog not found for ID: ${widget.dogId}");
+    }
 
     final dogAla = dogResult['dog_ala'];
     final sexRaw = dogResult['sex']?.toString().toLowerCase().trim();
@@ -189,14 +194,12 @@ print("SEX VALUE → '${dogResult['sex']}'"); // 👈 ADD THIS LINE
     List response = [];
 
     if (sexRaw == 'female') {
-      // ✅ Female owns plans
       response = await supabase
           .from('breeding_plans')
           .select()
           .eq('female_dog_ala', dogAla)
           .order('created_at', ascending: false);
     } else {
-      // ✅ Male sees plans
       response = await supabase
           .from('breeding_plans')
           .select()
@@ -308,8 +311,10 @@ print("SEX VALUE → '${dogResult['sex']}'"); // 👈 ADD THIS LINE
                       .from('dogs')
                       .select('dog_ala, sex')
                       .eq('id', widget.dogId)
-                      .single();
+                      .maybeSingle();
 
+                      if (dogResult == null) return;
+                      
                   final String currentAla = dogResult['dog_ala'] as String;
                   final String sex = dogResult['sex'] as String;
 

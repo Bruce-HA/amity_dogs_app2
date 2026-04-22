@@ -30,15 +30,7 @@ class DNAService {
       return;
     }
 
-_running.add(dogId);
-    final traitsMatch = RegExp(
-      r'Traits\s+Result[\s\S]+?A Locus[\s\S]+?(?=Owner|Glossary)',
-      caseSensitive: false,
-    ).firstMatch(text);
-
-    if (traitsMatch != null) {
-      traitsText = traitsMatch.group(0)!;
-    }
+    traitsText = text; // 🔥 USE FULL PDF TEXT
     
     print("TRAITS TEXT:");
     print(traitsText);
@@ -52,7 +44,7 @@ _running.add(dogId);
     try {
 
     await _saveDiseases(dogId, diseases);
-    await _saveResults(dogId, tests);
+    // await _saveResults(dogId, tests);
 
     await Future.delayed(const Duration(seconds: 1));
 
@@ -81,52 +73,70 @@ _running.add(dogId);
 
   // ===============================
   // LOCI PARSER
-  // ===============================
   Map<String, String> _parseOrivet(String text) {
     final result = <String, String>{};
 
-    final matches = RegExp(
-      r'\b([ekabdt yEKABDTY]{1,2}\s*/\s*[ekabdt yEKABDTY]{1,2})\b',
-    ).allMatches(text);
+    // 🔥 STEP 1 — CLEAN OCR SPACING FIRST
+    final clean = text
+        .toLowerCase()
+        .replaceAll('\n', ' ')
+        .replaceAll(RegExp(r'\s+'), ' ')
 
-    for (final m in matches) {
-      final raw = m.group(1);
-      if (raw == null) continue;
+    // 🔥 NORMALISE ALL SPACING VARIANTS
+        .replaceAll(RegExp(r'b\s*/\s*b'), 'b/b')
+        .replaceAll(RegExp(r'e\s*/\s*e'), 'e/e')
 
-      final cleaned = raw
-          .toLowerCase()
-          .replaceAll(' ', '')
-          .replaceAll('a y', 'ay')
-          .replaceAll('a t', 'at');
+        .replaceAll(RegExp(r'b\s+b'), 'b/b')
+        .replaceAll(RegExp(r'b\s*:\s*b\s*/\s*b'), 'b/b')
 
-      String normalized = cleaned;
+        .replaceAll(RegExp(r'k\s*y\s*/\s*k\s*y'), 'ky/ky')
+        .replaceAll(RegExp(r'k\s*b\s*/\s*k\s*y'), 'kb/ky')
+        .replaceAll(RegExp(r'k\s*y\s*/\s*k\s*b'), 'ky/kb')
+        .replaceAll(RegExp(r'\bbb\b'), 'b/b')
+        .replaceAll(RegExp(r'a\s*y\s*/\s*a\s*t'), 'ay/at')
+        .replaceAll(RegExp(r'a\s*t\s*/\s*a\s*t'), 'at/at')
+        .replaceAll(RegExp(r'a\s*y\s*/\s*a\s*y'), 'ay/ay');
 
-      // Fix broken A locus like y/a → ay/a
-      if (normalized == 'y/a') normalized = 'ay/a';
-      if (normalized == 'y/at') normalized = 'ay/at';
-      if (normalized == 't/a') normalized = 'at/a';
-      if (normalized == 't/at') normalized = 'at/at';
+    // 🟤 B LOCUS — TARGETED EXTRACTION
+    final bMatch = RegExp(
+      r'b\s*locus[^a-z0-9]{0,20}([a-z])\s*[/\s]\s*([a-z])',
+      caseSensitive: false,
+    ).firstMatch(clean);
 
-      final start = (m.start - 40).clamp(0, text.length);
-      final end = (m.end + 40).clamp(0, text.length);
-      final context = text.substring(start, end).toLowerCase();
+    if (bMatch != null) {
+      final a1 = bMatch.group(1);
+      final a2 = bMatch.group(2);
 
-      if (context.contains('e locus') && !result.containsKey('E')) {
-        result['E'] = cleaned;
+      if (a1 != null && a2 != null) {
+        result['B'] = '$a1/$a2';
       }
-      if (context.contains('k locus') && !result.containsKey('K')) {
-        result['K'] = cleaned;
-      }
-      if (context.contains('a locus') && !result.containsKey('A')) {
-        result['A'] = normalized;
-      }
-      if (context.contains('dilute') && !result.containsKey('D')) {
-        result['D'] = cleaned;
-      }
+      print("🟤 B MATCH: ${bMatch?.group(0)}");
     }
 
+
+        // 🔥 STEP 2 — SIMPLE DETECTION (NO GUESSING)
+        if (clean.contains('b/b')) result['B'] = 'b/b';
+        if (clean.contains('e/e')) result['E'] = 'e/e';
+        if (clean.contains('bb')) result['B'] = 'b/b';
+        if (clean.contains('ky/ky')) result['K'] = 'ky/ky';
+        if (clean.contains('kb/kb')) result['K'] = 'kb/kb';
+        if (clean.contains('kb/ky') || clean.contains('ky/kb')) {
+          result['K'] = 'kb/ky';
+        }
+
+    if (clean.contains('ay/at')) result['A'] = 'ay/at';
+    if (clean.contains('ay/ay')) result['A'] = 'ay/ay';
+    if (clean.contains('at/at')) result['A'] = 'at/at';
+
+    print("🧬 PARSED LOCI: $result");
+    print("🧪 CLEAN TEXT SAMPLE:");
+    print("🔍 CONTAINS B LOCUS?");
+    print(clean.contains('b locus'));
+    print(clean.contains(' b '));
+    print(clean.substring(0, 500));
+
     return result;
-  }
+    }
 
   // ===============================
   // SAVE DISEASES
@@ -135,17 +145,22 @@ _running.add(dogId);
     String dogId,
     Map<String, String> diseases,
   ) async {
-    
-    await supabase.from('dna_health').delete().eq('dog_id', dogId);
-
     for (final entry in diseases.entries) {
-      await supabase.from('dna_health').insert({
+      final testName = entry.key;
+      final result = entry.value;
+
+      if (testName.isEmpty || result.isEmpty) continue;
+
+      await supabase.from('dna_health').upsert({
         'dog_id': dogId,
-        'disease': entry.key,
-        'status': entry.value,
-      });
+        'test_name': testName,
+        'result': result,
+        'source_type': 'pdf',
+        'updated_at': DateTime.now().toIso8601String(),
+      }, onConflict: 'dog_id,test_name');
     }
   }
+
 
   // ===============================
   // SAVE SUMMARY
@@ -170,24 +185,21 @@ _running.add(dogId);
   Map<String, String> _extractDiseases(String text) {
     final map = <String, String>{};
 
-    final matches = RegExp(
-      r'([A-Za-z0-9\-\(\)\/\s]+?)\s+(NEGATIVE|CARRIER|POSITIVE)',
-      caseSensitive: false,
-    ).allMatches(text);
+    final clean = text.toLowerCase();
 
-    for (final m in matches) {
-      final name = m.group(1)?.trim() ?? '';
-      final raw = m.group(2)?.toUpperCase() ?? '';
-
-      if (name.length < 5) continue;
-
-      String status = 'UNKNOWN';
-      if (raw == 'NEGATIVE') status = 'CLEAR';
-      if (raw == 'CARRIER') status = 'CARRIER';
-      if (raw == 'POSITIVE') status = 'AFFECTED';
-
-      map[name] = status;
+    if (clean.contains('degenerative myelopathy')) {
+      if (clean.contains('negative')) map['DM'] = 'clear';
+      if (clean.contains('carrier')) map['DM'] = 'carrier';
+      if (clean.contains('positive')) map['DM'] = 'affected';
     }
+
+    if (clean.contains('prcd') || clean.contains('pra')) {
+      if (clean.contains('negative')) map['PRA'] = 'clear';
+      if (clean.contains('carrier')) map['PRA'] = 'carrier';
+      if (clean.contains('positive')) map['PRA'] = 'affected';
+    }
+
+    print("🧪 DISEASE MAP: $map");
 
     return map;
   }
@@ -232,169 +244,46 @@ _running.add(dogId);
     Map<String, String> loci,
     String traitsText,
   ) async {
-    print("🚨 REBUILD START for $dogId at ${DateTime.now()}");
-    print("🚀 rebuildDNABank RUNNING");
-    print("LOCI PASSED IN: $loci");
-    print("SUPABASE URL: ${Supabase.instance.client.rest.url}");
 
-    await supabase.from('dna_bank').delete().eq('dog_id', dogId);
+    print("🚀 rebuildDNABank for $dogId");
+    print("LOCI: $loci");
 
-    if (loci.isEmpty || loci.length < 3) {
-      print("⚠️ No loci from traitsText — using dna_summary fallback");
-
-      final rows = await supabase
-          .from('dna_summary')
-          .select()
-          .eq('dog_id', dogId);
-
-      for (final r in rows) {
-        final name = (r['test_name'] ?? '').toLowerCase();
-
-        if (name.contains('b s /b s') ||
-            name.contains('b c /b c') ||
-            name.contains('b d /b d')) {
-          await supabase.from('dna_bank').insert({
-            'dog_id': dogId,
-            'locus': 'B',
-            'allele_1': 'b',
-            'allele_2': 'b',
-            'source': 'summary',
-          });
-        }
-
-        if (name.contains('a y /a')) {
-          await supabase.from('dna_bank').insert({
-            'dog_id': dogId,
-            'locus': 'A',
-            'allele_1': 'ay',
-            'allele_2': 'a',
-            'source': 'summary',
-          });
-        }
-      }
-    }
-
-    // E, K, A, D
-    final inserted = <String>{};
+    // OPTIONAL: keep for now
+    // await supabase.from('dna_bank').delete().eq('dog_id', dogId);
 
     for (final entry in loci.entries) {
       final locus = entry.key;
       final value = entry.value;
 
-      inserted.add(locus); // 👈 ADD THIS LINE
-
-      print("PROCESSING LOCUS: $locus → $value");
-
       final parts = value.split('/');
-      if (parts.length != 2) {
-        print("❌ SKIPPED $locus (bad format)");
-        continue;
-      }
+      if (parts.length != 2) continue;
 
-      print("🔥 ABOUT TO INSERT: $locus → $value");
-
-      final res = await supabase
-          .from('dna_bank')
-          .insert({
-            'dog_id': dogId,
-            'locus': locus,
-            'allele_1': parts[0],
-            'allele_2': parts[1],
-            'source': 'summary',
-          })
-            .select();
-
-          final check = await supabase
-            .from('dna_bank')
-            .select()
-            .eq('dog_id', dogId);
-
-        print("🧪 APP READ BACK: $check");
-        
-
-      print("INSERT RESULT: $res");
-    }
-
-    // B locus
-    String detectB(String text) {
-      final clean = text.toLowerCase().replaceAll(' ', '');
-
-      if (clean.contains('bs/') ||
-          clean.contains('bc/') ||
-          clean.contains('bd/') ||
-          clean.contains('/bs') ||
-          clean.contains('/bc') ||
-          clean.contains('/bd')) {
-        return 'b/b';
-      }
-      return 'B/B';
-    }
-
-/*
-    String? extractALocus(String text) {
-      final clean = text
-          .replaceAll('a y', 'ay')
-          .replaceAll('a t', 'at')
-          .replaceAll('\n', ' ')
-          .replaceAll(RegExp(r'\s+'), ' ');
-
-      final match = RegExp(
-        r'A\s*Locus.*?(ay/ay|ay/at|at/at|at/a|a/a)',
-        caseSensitive: false,
-      ).firstMatch(clean);
-
-      if (match != null) {
-        print("🧬 A LOCUS FOUND: ${match.group(1)}");
-        return match.group(1);
-      }
-
-      print("❌ A LOCUS NOT FOUND");
-      return null;
-    }
-*/
-    if (!inserted.contains('B')) {
-      final b = detectB(traitsText);
-      final parts = b.split('/');
-
-      await supabase.from('dna_bank').insert({
+      await supabase.from('dna_bank').upsert({
         'dog_id': dogId,
-        'locus': 'B',
+        'locus': locus,
         'allele_1': parts[0],
         'allele_2': parts[1],
         'source': 'summary',
-        
-      });
-      
+      }, onConflict: 'dog_id,locus');
     }
 
-    // 👇 after inserting all loci
-    // 🔥 get B from actual database (source of truth)
-  final bRow = await supabase
-      .from('dna_bank')
-      .select()
-      .eq('dog_id', dogId)
-      .eq('locus', 'B')
-      .maybeSingle();
+    // 🐽 Nose colour (based on B only)
+    final bRow = await supabase
+        .from('dna_bank')
+        .select()
+        .eq('dog_id', dogId)
+        .eq('locus', 'B')
+        .maybeSingle();
 
-  print("🐽 B ROW FROM DB: $bRow");
+    if (bRow != null) {
+      final a1 = (bRow['allele_1'] as String).toLowerCase();
+      final a2 = (bRow['allele_2'] as String).toLowerCase();
 
-  if (bRow != null) {
-    final allele1 = (bRow['allele_1'] as String).toLowerCase().trim();
-    final allele2 = (bRow['allele_2'] as String).toLowerCase().trim();
+      final noseColour = (a1 == 'b' && a2 == 'b') ? 'liver' : 'black';
 
-    String noseColour;
-
-    if (allele1 == 'b' && allele2 == 'b') {
-      noseColour = 'liver';
-    } else {
-      noseColour = 'black';
+      await supabase.from('dogs').update({
+        'nose_colour': noseColour,
+      }).eq('id', dogId);
     }
-
-    print("🐽 Setting nose colour → $noseColour");
-
-    await supabase.from('dogs').update({
-      'nose_colour': noseColour,
-    }).eq('id', dogId);
-  }
   }
 }

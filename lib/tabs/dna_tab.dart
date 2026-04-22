@@ -53,9 +53,9 @@ class _DnaTabState extends State<DnaTab> {
         .from('dogs')
         .select('dog_ala')
         .eq('id', widget.dogId)
-        .single();
+        .maybeSingle();
 
-    final dogAla = dog['dog_ala'];
+    final dogAla = dog?['dog_ala'];
 
     final filePath =
         '$dogAla/DNA/${DateTime.now().millisecondsSinceEpoch}_${file.name}';
@@ -186,30 +186,75 @@ class _DnaTabState extends State<DnaTab> {
       ),
 
       body: isLoading
-          ? const Center(child: CircularProgressIndicator())
-          : hasDna
-              ? ListView.builder(
-                  padding: const EdgeInsets.all(16),
-                  itemCount: loci.length,
-                  itemBuilder: (context, index) {
-                    final locus = loci[index];
-                    return Card(
-                      child: ListTile(
-                        title: Text(locus['locus'] ?? ''),
-                        subtitle: Text(
-                          '${locus['allele_1'] ?? ''} / ${locus['allele_2'] ?? ''}',
-                        ),
+        ? const Center(child: CircularProgressIndicator())
+        : hasDna
+            ? FutureBuilder(
+                future: Future.wait([
+                  supabase
+                      .from('dna_bank')
+                      .select()
+                      .eq('dog_id', widget.dogId),
+                  supabase
+                      .from('dna_health')
+                      .select()
+                      .eq('dog_id', widget.dogId),
+                ]),
+                builder: (context, snapshot) {
+                  if (!snapshot.hasData) {
+                    return const Center(child: CircularProgressIndicator());
+                  }
+
+                  final data = snapshot.data as List;
+                  final loci = List<Map<String, dynamic>>.from(data[0]);
+                  final health = List<Map<String, dynamic>>.from(data[1]);
+
+                  return ListView(
+                    padding: const EdgeInsets.all(16),
+                    children: [
+                      // 🧬 Genetics
+                      const Text(
+                        "Genetics",
+                        style:
+                            TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
                       ),
-                    );
-                  },
-                )
-                
-              : Center(
-                  child: ElevatedButton(
-                    onPressed: uploadDnaSummary,
-                    child: const Text('⬆️ Upload DNA Summary'),
-                  ),
+
+                      ...loci.map((locus) => Card(
+                            child: ListTile(
+                              title: Text(locus['locus'] ?? ''),
+                              subtitle: Text(
+                                '${locus['allele_1'] ?? ''} / ${locus['allele_2'] ?? ''}',
+                              ),
+                            ),
+                          )),
+
+                      const SizedBox(height: 20),
+
+                      // 🧪 Health
+                      const Text(
+                        "Health",
+                        style:
+                            TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                      ),
+
+                      ...health.map((h) => Card(
+                            child: ListTile(
+                              title: Text(h['test_name'] ?? ''),
+                              subtitle: Text(h['result'] ?? ''),
+                            ),
+                          )),
+                    ],
+                  );
+                },
+              )
+            : Center(
+                child: ElevatedButton(
+                  onPressed: uploadDnaSummary,
+                  child: const Text('⬆️ Upload DNA Summary'),
                 ),
+              ),
+                
     );
+    
   }
+  
 }

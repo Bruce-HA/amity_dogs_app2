@@ -67,4 +67,37 @@ class BreedingPlansPage extends StatelessWidget {
       ),
     );
   }
+  Widget colourBadge(String label) {
+    Color bg;
+
+    switch (label) {
+      case 'Chocolate':
+        bg = Colors.brown;
+        break;
+      case 'Caramel':
+        bg = Colors.orange;
+        break;
+      case 'Black':
+        bg = Colors.black;
+        break;
+      case 'Phantom':
+        bg = Colors.purple;
+        break;
+      default:
+        bg = Colors.grey;
+    }
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      margin: const EdgeInsets.all(4),
+      decoration: BoxDecoration(
+        color: bg,
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Text(
+        label,
+        style: const TextStyle(color: Colors.white),
+      ),
+    );
+  }
 }
