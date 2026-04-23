@@ -1,10 +1,8 @@
-import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:reorderable_grid_view/reorderable_grid_view.dart';
 import 'package:amity_dogs_app/tabs/photo_viewer_page.dart';
-import 'package:image_picker/image_picker.dart';
 import 'package:image/image.dart' as img;
 
 class DogPhotosTab extends StatefulWidget {
@@ -123,48 +121,68 @@ class _DogPhotosTabState extends State<DogPhotosTab> {
       type: FileType.custom,
       allowedExtensions: ['jpg', 'jpeg', 'png', 'heic', 'webp'],
       allowMultiple: false,
+      withData: true,
     );
 
-    if (result == null || result.files.single.path == null) return;
+    if (result == null || result.files.single.bytes == null) return;
 
-    final file = File(result.files.single.path!);
+    final originalBytes = result.files.single.bytes!;
 
-    final extension = file.path.split('.').last.toLowerCase();
+    final img.Image? decodedImage =
+      img.decodeImage(originalBytes);
+
+    if (decodedImage == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text("Could not process image"),
+        ),
+      );
+      return;
+    }
+
+    final jpgBytes = img.encodeJpg(
+      decodedImage,
+      quality: 85,
+    );
+
     final fileName =
-        "${DateTime.now().millisecondsSinceEpoch}.$extension";
+        "${DateTime.now().millisecondsSinceEpoch}.jpg";
 
     final storagePath = buildStoragePath(fileName);
 
-    await supabase.storage.from('dog_files').upload(
+    await supabase.storage
+        .from('dog_files')
+        .uploadBinary(
           storagePath,
-          file,
+          jpgBytes,
+          fileOptions: const FileOptions(
+            upsert: true,
+          ),
         );
-    print({
-      'dog_id': widget.dogId,
-      'dog_ala': widget.dogAla,
-      'url': fileName,
-    });
-
-    final data = {
-      'dog_id': widget.dogId,
-      'dog_ala': widget.dogAla.toString(),
-      'file_name': fileName,
-      'url': fileName,
-      'thumb_url': fileName,
-      'description': '',
-      'is_hero': false,
-      'display_order': photos.length,
-      'rotation': 0,
-      'photo_exists_on_zooeasy': false,
-    };
-
-    print("INSERTING: $data"); // 👈 IMPORTANT
 
     await supabase
         .from('dog_photos')
-        .insert(data);
+        .insert({
+          'dog_id': widget.dogId,
+          'dog_ala': widget.dogAla.toString(),
+          'file_name': fileName,
+          'url': fileName,
+          'thumb_url': fileName,
+          'description': '',
+          'is_hero': false,
+          'display_order': photos.length,
+          'rotation': 0,
+          'photo_exists_on_zooeasy': false,
+        });
 
     await loadPhotos();
+    widget.onHeroChanged?.call();
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text("Photo uploaded"),
+      ),
+    );
   }
 
   /*

@@ -6,6 +6,7 @@ import 'dog_create_page.dart';
 import 'widgets/dog_list_card.dart';
 import '../ui/spacing.dart';
 import 'widgets/app_dog_image.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 class DogsPage extends StatefulWidget {
   const DogsPage({super.key});
@@ -31,22 +32,24 @@ class _DogsPageState extends State<DogsPage> {
 
   bool _myDogsOnly = false;
   bool _spayPendingOnly = false;
-  bool _defaultSpayView = true;
   String? _selectedStatus;
 
   String? _myPeopleId;
 
   List<Map<String, dynamic>> _dogs = [];
 
-  final List<String> _statuses = [
-    'Pet',
+  final List<String> _filters = [
+    'All',
+    'My Dogs',
+    'Spay Pending',
+    'Breeding',
     'Active',
     'Pending',
     'Guardian',
+    'Pet',
     'Retired',
-    'Deceased',
     'For Sale',
-    'Breeding',
+    'Deceased',
   ];
 
   // ONLY showing CHANGED / FIXED parts to keep this clean
@@ -88,9 +91,6 @@ class _DogsPageState extends State<DogsPage> {
 
   void _onSearchChanged(String value) {
     _debounce = Timer(const Duration(milliseconds: 300), () {
-      setState(() {
-        _defaultSpayView = false;
-      });
 
       _fetchDogs(reset: true);
     });
@@ -131,7 +131,7 @@ class _DogsPageState extends State<DogsPage> {
         query = query.eq('my_dogs', true);
       }
 
-      if (_spayPendingOnly || _defaultSpayView) {
+      if (_spayPendingOnly) {
         query = query.not('spay_due', 'is', null);
       }
 
@@ -147,7 +147,7 @@ class _DogsPageState extends State<DogsPage> {
       }
 
       final shouldSortBySpay =
-          _spayPendingOnly || _defaultSpayView;
+        _spayPendingOnly;
 
       final response = await (shouldSortBySpay
           ? query.order('spay_due', ascending: true)
@@ -164,70 +164,31 @@ class _DogsPageState extends State<DogsPage> {
     }
   }
 
-  Widget _buildFilters() {
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 8, 16, 4),
-      child: SingleChildScrollView(
-        scrollDirection: Axis.horizontal,
-        child: Row(
-          children: [
-            _buildSegmentChip(
-              label: 'My Dogs',
-              selected: _myDogsOnly,
-              onTap: () {
-                setState(() => _myDogsOnly = !_myDogsOnly);
-                _fetchDogs(reset: true);
-              },
-            ),
-            const SizedBox(width: 8),
-            _buildSegmentChip(
-              label: 'Spay Pending',
-              selected: _spayPendingOnly,
-              onTap: () {
-                setState(() => _spayPendingOnly = !_spayPendingOnly);
-                _fetchDogs(reset: true);
-              },
-            ),
-            const SizedBox(width: 8),
-            _buildStatusDropdown(),
-          ],
-        ),
-      ),
-    );
-  }
 
-  Widget _buildSegmentChip({
-    required String label,
-    required bool selected,
-    required VoidCallback onTap,
-  }) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-        decoration: BoxDecoration(
-          color: selected
-              ? Theme.of(context).colorScheme.primary.withOpacity(0.15)
-              : Colors.white,
-          borderRadius: BorderRadius.circular(20),
-          border: Border.all(color: Colors.grey.shade300),
-        ),
-        child: Text(label),
-      ),
-    );
-  }
-
-  Widget _buildStatusDropdown() {
+  Widget _buildFilterDropdown() {
     return DropdownButton<String>(
       value: _selectedStatus ?? 'All',
-      items: [
-        const DropdownMenuItem(value: 'All', child: Text('All')),
-        ..._statuses.map((s) => DropdownMenuItem(value: s, child: Text(s))),
-      ],
+      items: _filters.map((filter) {
+        return DropdownMenuItem(
+          value: filter,
+          child: Text(filter),
+        );
+      }).toList(),
       onChanged: (value) {
         setState(() {
-          _selectedStatus = value == 'All' ? null : value;
+          _myDogsOnly = false;
+          _spayPendingOnly = false;
+          _selectedStatus = null;
+
+          if (value == 'My Dogs') {
+            _myDogsOnly = true;
+          } else if (value == 'Spay Pending') {
+            _spayPendingOnly = true;
+          } else if (value != 'All') {
+            _selectedStatus = value;
+          }
         });
+
         _fetchDogs(reset: true);
       },
     );
@@ -241,20 +202,29 @@ class _DogsPageState extends State<DogsPage> {
         children: [
           Padding(
             padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
-            child: TextField(
-              controller: _searchController,
-              onChanged: _onSearchChanged,
-              decoration: const InputDecoration(
-                hintText: 'Search dogs...',
-                prefixIcon: Icon(Icons.search),
-              ),
+            child: Row(
+              children: [
+                Expanded(
+                  child: TextField(
+                    controller: _searchController,
+                    onChanged: _onSearchChanged,
+                    decoration: const InputDecoration(
+                      hintText: 'Search dogs...',
+                      prefixIcon: Icon(Icons.search),
+                    ),
+                  ),
+                ),
+
+                const SizedBox(width: 12),
+
+                _buildFilterDropdown(),
+              ],
             ),
           ),
-          _buildFilters(),
           Expanded(
             child: _dogs.isEmpty
                 ? const Center(
-                    child: Text("Search or use filters to find dogs"),
+                    child: Text("This will open on the last viewed dog."),
                   )
                 : ListView.builder(
                     controller: _scrollController,
@@ -265,6 +235,8 @@ class _DogsPageState extends State<DogsPage> {
                       return DogListCard(
                         dog: dog,
                         onTap: () async {
+                          await _saveLastViewedDog(dog['id']);
+
                           final refreshed = await Navigator.push(
                             context,
                             MaterialPageRoute(
@@ -296,5 +268,37 @@ class _DogsPageState extends State<DogsPage> {
         },
       ),
     );
+  }
+
+/*
+  =============================
+  Open Last Viewed
+  =============================
+  */
+
+  Future<void> _saveLastViewedDog(String dogId) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString('last_viewed_dog_id', dogId);
+  }
+
+  Future<void> _openLastViewedDog() async {
+    final prefs = await SharedPreferences.getInstance();
+    final lastDogId = prefs.getString('last_viewed_dog_id');
+
+    if (lastDogId == null) return;
+
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      final refreshed = await Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (_) => DogDetailsPage(dogId: lastDogId),
+        ),
+      );
+
+      if (refreshed == true) {
+        _fetchDogs(reset: true);
+        _openLastViewedDog();
+      }
+    });
   }
 }

@@ -18,9 +18,10 @@ class DogCard extends StatelessWidget {
 
     // from SQL view
     final fileName =
-        dog['hero_file_name'] ??
-        dog['file_name'] ??
-        dog['url'];
+      dog['hero'] ??
+      dog['hero_file_name'] ??
+      dog['file_name'] ??
+      dog['url'];
 
     String? imageUrl;
 
