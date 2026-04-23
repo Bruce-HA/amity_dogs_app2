@@ -81,9 +81,21 @@ class _VehicleLogPageState extends State<VehicleLogPage> {
         driverName: driverName,
       );
 
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Vehicle log saved')),
+      final messenger = ScaffoldMessenger.of(context);
+
+      messenger.showSnackBar(
+        const SnackBar(
+          content: Text('Vehicle log saved'),
+          duration: Duration(seconds: 2),
+        ),
       );
+
+      // Wait for snackbar to finish, then return to dashboard
+      await Future.delayed(const Duration(seconds: 2));
+
+      if (mounted) {
+        Navigator.pop(context);
+      }
     } catch (e) {
       debugPrint(e.toString());
     }

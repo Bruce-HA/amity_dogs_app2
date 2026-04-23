@@ -31,6 +31,7 @@ class _DogsPageState extends State<DogsPage> {
 
   bool _myDogsOnly = false;
   bool _spayPendingOnly = false;
+  bool _defaultSpayView = true;
   String? _selectedStatus;
 
   String? _myPeopleId;
@@ -80,11 +81,17 @@ class _DogsPageState extends State<DogsPage> {
       _myPeopleId = profile['people_id'];
       _initialLoad = false; // ✅ FIX
     });
+
+    _fetchDogs(reset: true);
+
   }
 
   void _onSearchChanged(String value) {
-    if (_debounce?.isActive ?? false) _debounce!.cancel();
     _debounce = Timer(const Duration(milliseconds: 300), () {
+      setState(() {
+        _defaultSpayView = false;
+      });
+
       _fetchDogs(reset: true);
     });
   }
@@ -124,7 +131,7 @@ class _DogsPageState extends State<DogsPage> {
         query = query.eq('my_dogs', true);
       }
 
-      if (_spayPendingOnly) {
+      if (_spayPendingOnly || _defaultSpayView) {
         query = query.not('spay_due', 'is', null);
       }
 
@@ -139,8 +146,12 @@ class _DogsPageState extends State<DogsPage> {
         );
       }
 
-      final response = await query
-          .order('dob', ascending: false) // ✅ youngest first
+      final shouldSortBySpay =
+          _spayPendingOnly || _defaultSpayView;
+
+      final response = await (shouldSortBySpay
+          ? query.order('spay_due', ascending: true)
+          : query.order('dob', ascending: false))
           .range(_offset, _offset + _limit - 1);
 
       setState(() {
@@ -253,14 +264,18 @@ class _DogsPageState extends State<DogsPage> {
 
                       return DogListCard(
                         dog: dog,
-                        onTap: () {
-                          Navigator.push(
+                        onTap: () async {
+                          final refreshed = await Navigator.push(
                             context,
                             MaterialPageRoute(
                               builder: (_) =>
                                   DogDetailsPage(dogId: dog['id']),
                             ),
                           );
+
+                          if (refreshed == true) {
+                            _fetchDogs(reset: true);
+                          }
                         },
                       );
                     },

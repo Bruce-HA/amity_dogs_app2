@@ -63,7 +63,7 @@ class _DogPhotosTabState extends State<DogPhotosTab> {
       'rotation': 0,
     });
   }
-
+/*
   String getFullUrl(String fileName) {
 
     fileName = fileName.split("/").last;
@@ -75,6 +75,7 @@ class _DogPhotosTabState extends State<DogPhotosTab> {
 
     return url;
   }
+  */
   Future<void> loadPhotos() async {
     setState(() {
       loading = true;
@@ -143,21 +144,15 @@ class _DogPhotosTabState extends State<DogPhotosTab> {
 
 
   Widget buildPhotoCard(Map<String, dynamic> photo) {
+    final thumbPath = photo['thumb_url'] ?? "";
+    final fullPath = photo['url'] ?? "";
 
-    final fileName = photo['url'] ?? "";
-
-    final fullUrl =
-        "https://phkwizyrpfzoecugpshb.supabase.co/storage/v1/object/public/dog_files/${widget.dogId}/photo/$fileName";
-
-    print("DISPLAYING IMAGE: $fullUrl");
-
-    final description = photo['description'] ?? "";
+    final thumbUrl = "$baseUrl/$thumbPath";
+    final fullUrl = "$baseUrl/$fullPath";
 
     return GestureDetector(
       onTap: () async {
-
-        final result =
-            await Navigator.push(
+        final result = await Navigator.push(
           context,
           MaterialPageRoute(
             builder: (_) => PhotoViewerPage(
@@ -173,6 +168,13 @@ class _DogPhotosTabState extends State<DogPhotosTab> {
           loadPhotos();
         }
       },
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(8),
+        child: Image.network(
+          thumbUrl,
+          fit: BoxFit.cover,
+        ),
+      ),
     );
   }
 

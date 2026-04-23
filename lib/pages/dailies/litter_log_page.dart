@@ -265,9 +265,29 @@ class _LitterLogPageState extends State<LitterLogPage> {
 
                       return ListTile(
                         leading: Icon(cat.icon, color: cat.color),
+
                         title: Text(log['note'] ?? ''),
+
                         subtitle: Text(
-                            "${cat.label} • ${formatDateTime(log['event_time'])} • ${log['created_by_name'] ?? ''}"),
+                          "${cat.label} • ${formatDateTime(log['event_time'])} • ${log['created_by_name'] ?? ''}",
+                        ),
+
+                        trailing: log['modified_at'] != null
+                            ? const Icon(
+                                Icons.edit,
+                                size: 18,
+                                color: Colors.grey,
+                              )
+                            : null,
+
+                        onLongPress: () async {
+                          await showEditLogModal(
+                            context,
+                            log,
+                          );
+
+                          loadLogs();
+                        },
                       );
                     },
                   ),

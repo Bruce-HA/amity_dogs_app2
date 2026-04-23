@@ -79,29 +79,59 @@ class _RemoveDNAPageState extends State<RemoveDNAPage> {
 
 
       // 3️⃣ Delete DB records
-      // 🔥 DELETE ALL DNA TABLES (NEW STRUCTURE)
-    await supabase.from('dna_bank').delete().eq('dog_id', dogId);
-    final check = await supabase
-        .from('dna_bank')
-        .select()
-        .eq('dog_id', dogId);
+      // 3️⃣ Delete DB records
+      print("🧬 Removing DNA records for dog_id: $dogId");
 
-    print("AFTER DELETE dna_bank COUNT: ${check.length}");
-    await supabase.from('dna_health').delete().eq('dog_id', dogId);
-    await supabase.from('dna_summary').delete().eq('dog_id', dogId);
+      // Core genetics
+      await supabase
+          .from('dna_bank')
+          .delete()
+          .eq('dog_id', dogId);
 
-    // optional (keep if still used)
-    await supabase.from('dna_reports').delete().eq('dog_id', dogId);
+      await supabase
+          .from('dna_health')
+          .delete()
+          .eq('dog_id', dogId);
 
-    // 🔥 REMOVE OLD TABLE COMPLETELY (if exists)
-    await supabase.from('dna_results').delete().eq('dog_id', dogId);
+      await supabase
+          .from('dna_manual')
+          .delete()
+          .eq('dog_id', dogId);
+
+      await supabase
+          .from('dna_traits')
+          .delete()
+          .eq('dog_id', dogId);
+
+      // Reports + summaries
+      await supabase
+          .from('dna_reports')
+          .delete()
+          .eq('dog_id', dogId);
+
+      await supabase
+          .from('dna_results')
+          .delete()
+          .eq('dog_id', dogId);
+
+      await supabase
+          .from('dna_summary')
+          .delete()
+          .eq('dog_id', dogId);
+
+      // verification logs
+      final bankCheck = await supabase
+          .from('dna_bank')
+          .select('id')
+          .eq('dog_id', dogId);
+
+      print("AFTER DELETE dna_bank count: ${bankCheck.length}");
 
       // 4️⃣ Reset flag
       await supabase.from('dogs').update({
         'has_dna_summary': false,
-        // future-proof 👇
-        // 'has_trait_certificate': false,
-        // 'has_manual_dna': false,
+        'nose_colour': null,
+        'second_colour': null,
       }).eq('id', dogId);
 
       if (mounted) {

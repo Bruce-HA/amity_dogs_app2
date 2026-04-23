@@ -66,36 +66,24 @@ class _DnaTabState extends State<DnaTab> {
 
     final storage = supabase.storage.from('dog_files');
 
-    await storage.uploadBinary(
-      filePath,
-      bytes,
-      fileOptions: const FileOptions(upsert: true),
-    );
+      await storage.uploadBinary(
+        filePath,
+        bytes,
+        fileOptions: const FileOptions(upsert: true),
+      );
 
-    final publicUrl = storage.getPublicUrl(filePath);
+      final publicUrl = storage.getPublicUrl(filePath);
 
-    await supabase.from('dna_reports').insert({
-      'dog_id': widget.dogId,
-      'lab': 'Orivet',
-      'report_url': publicUrl,
-      'report_type': 'summary', // 👈 ADD THIS
-      'is_active': true,
-      'test_date': DateTime.now().toIso8601String(),
-    });
+      await DNAService().processDNA(
+        dogId: widget.dogId,
+        fileBytes: bytes,
+        fileUrl: publicUrl,
+      );
 
     await supabase
         .from('dogs')
         .update({'has_dna_summary': true})
         .eq('id', widget.dogId);
-
-    // 👇 REPLACE THE OLD DEBUG TEXT BLOCK WITH THIS
-
-    final extractedText = extractPdfText(bytes);
-
-    await DNAService().processDNA(
-      dogId: widget.dogId,
-      fileBytes: bytes,
-    );
 
   /*  final parsed = parseLoci(extractedText);
 
@@ -296,7 +284,7 @@ class _DnaTabState extends State<DnaTab> {
                                   TextField(
                                     controller: secondCoatController,
                                     decoration: const InputDecoration(
-                                      labelText: "Secondary Coat Colour",
+                                      labelText: "Secondary Colour",
                                     ),
                                   ),
 
@@ -314,7 +302,7 @@ class _DnaTabState extends State<DnaTab> {
                                       await supabase.from('dogs').update({
                                         'nose_colour': noseColourController.text,
                                         'coat_colour': coatColourController.text,
-                                        'second_coat_colour': secondCoatController.text,
+                                        'second_colour': secondCoatController.text,
                                         'coat_type': coatTypeController.text,
                                       }).eq('id', widget.dogId);
 

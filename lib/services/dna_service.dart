@@ -10,10 +10,10 @@ class DNAService {
   // MAIN ENTRY
   // ===============================
   Future<void> processDNA({
-    required String dogId,
-    required Uint8List fileBytes,
-    
-  }) async {
+  required String dogId,
+  required Uint8List fileBytes,
+  required String fileUrl,
+}) async {
     var text = await _extractPdfText(fileBytes);
 
     String diseaseText = text;
@@ -29,6 +29,7 @@ class DNAService {
       print("⛔ SKIPPED duplicate process for $dogId");
       return;
     }
+    _running.add(dogId); // 🔥 THIS WAS MISSING
 
     traitsText = text; // 🔥 USE FULL PDF TEXT
     
@@ -59,8 +60,9 @@ class DNAService {
       'dog_id': dogId,
       'lab': 'Orivet',
       'report_type': 'summary',
+      'report_url': fileUrl,
       'test_date': testDate,
-      'created_at': DateTime.now().toIso8601String(),
+      'is_active': true,
     }, onConflict: 'dog_id,report_type');
 
     } finally {
@@ -271,23 +273,52 @@ print("📅 TEST DATE: $testDate");
     final map = <String, String>{};
 
     final clean = text.toLowerCase();
+    final lines = clean.split('\n');
 
-    if (clean.contains('degenerative myelopathy')) {
-      if (clean.contains('negative')) map['DM'] = 'clear';
-      if (clean.contains('carrier')) map['DM'] = 'carrier';
-      if (clean.contains('positive')) map['DM'] = 'affected';
-    }
+    for (final line in lines) {
+      final l = line.trim();
 
-    if (clean.contains('prcd') || clean.contains('pra')) {
-      if (clean.contains('negative')) map['PRA'] = 'clear';
-      if (clean.contains('carrier')) map['PRA'] = 'carrier';
-      if (clean.contains('positive')) map['PRA'] = 'affected';
+      // =========================
+      // DM
+      // =========================
+      if (l.contains('degenerative myelopathy') || l.contains(' dm ')) {
+        if (l.contains('clear') ||
+            l.contains('negative') ||
+            l.contains('normal') ||
+            l.contains('not detected')) {
+          map['DM'] = 'clear';
+        } else if (l.contains('carrier')) {
+          map['DM'] = 'carrier';
+        } else if (l.contains('affected') ||
+                  l.contains('positive')) {
+          map['DM'] = 'affected';
+        }
+      }
+
+      // =========================
+      // PRA
+      // =========================
+      if (l.contains('pra') || l.contains('prcd')) {
+        if (l.contains('clear') ||
+            l.contains('negative') ||
+            l.contains('normal') ||
+            l.contains('not detected')) {
+          map['PRA'] = 'clear';
+        } else if (l.contains('carrier')) {
+          map['PRA'] = 'carrier';
+        } else if (l.contains('affected') ||
+                  l.contains('positive')) {
+          map['PRA'] = 'affected';
+        }
+      }
     }
 
     print("🧪 DISEASE MAP: $map");
 
     return map;
   }
+
+
 
   // ===============================
   // EXTRACT ALL TESTS

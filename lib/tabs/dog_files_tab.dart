@@ -186,6 +186,122 @@ Future<void> togglePin(Map file) async {
 
   loadFiles();
 }
+/*
+  =========================================
+  Edit Description function
+  =========================================
+  */
+Future<void> editDescription(Map file) async {
+  final controller = TextEditingController(
+    text: file['file_description'] ?? '',
+  );
+
+  final result = await showDialog<String>(
+    context: context,
+    builder: (_) => AlertDialog(
+      title: const Text("Edit Description"),
+      content: TextField(
+        controller: controller,
+        maxLines: 3,
+        decoration: const InputDecoration(
+          hintText: "Enter file description",
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: const Text("Cancel"),
+        ),
+        ElevatedButton(
+          onPressed: () =>
+              Navigator.pop(context, controller.text.trim()),
+          child: const Text("Save"),
+        ),
+      ],
+    ),
+  );
+
+  if (result == null) return;
+
+  await supabase
+      .from('dog_files')
+      .update({
+        'file_description': result,
+      })
+      .eq('id', file['id']);
+
+  loadFiles();
+}
+/*
+  =========================================
+  Rename File function
+  =========================================
+  */
+Future<void> renameFile(Map file) async {
+  final oldName = file['file_name'] ?? '';
+
+  final controller = TextEditingController(
+    text: oldName,
+  );
+
+  final result = await showDialog<String>(
+    context: context,
+    builder: (_) => AlertDialog(
+      title: const Text("Rename File"),
+      content: TextField(
+        controller: controller,
+        decoration: const InputDecoration(
+          hintText: "Enter new file name",
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: const Text("Cancel"),
+        ),
+        ElevatedButton(
+          onPressed: () =>
+              Navigator.pop(context, controller.text.trim()),
+          child: const Text("Save"),
+        ),
+      ],
+    ),
+  );
+
+  if (result == null || result.isEmpty || result == oldName) return;
+
+  final oldPath = buildPath(oldName);
+  final newPath = buildPath(result);
+
+  // download old file
+  final bytes = await supabase.storage
+      .from('dog_files')
+      .download(oldPath);
+
+  // upload new file
+  await supabase.storage
+      .from('dog_files')
+      .uploadBinary(
+        newPath,
+        bytes,
+        fileOptions: const FileOptions(upsert: true),
+      );
+
+  // delete old file
+  await supabase.storage
+      .from('dog_files')
+      .remove([oldPath]);
+
+  // update database row
+  await supabase
+      .from('dog_files')
+      .update({
+        'file_name': result,
+      })
+      .eq('id', file['id']);
+
+  loadFiles();
+}
   /*
   =========================================
   FILE ICON HELPER
@@ -287,6 +403,16 @@ Future<void> togglePin(Map file) async {
                 ),
 
                 PopupMenuItem(
+                  value: "description",
+                  child: Text("Edit Description"),
+                ),
+
+                PopupMenuItem(
+                  value: "rename",
+                  child: Text("Rename File"),
+                ),
+
+                PopupMenuItem(
                   value: "delete",
                   child: Text("Delete"),
                 ),
@@ -299,6 +425,14 @@ Future<void> togglePin(Map file) async {
 
                 if (value == "share") {
                   shareFile(name);
+                }
+
+                if (value == "description") {
+                  editDescription(file);
+                }
+
+                if (value == "rename") {
+                  renameFile(file);
                 }
 
                 if (value == "delete") {

@@ -69,6 +69,9 @@ class _BreedingPlanCardState extends State<BreedingPlanCard> {
     );
   }
 
+///
+///
+///
   Widget _fallbackImage() {
     return Container(
       decoration: BoxDecoration(
@@ -86,8 +89,127 @@ class _BreedingPlanCardState extends State<BreedingPlanCard> {
       ),
     );
   }
-// } 
-//jj
+// ==== ALA Grading====
+  String _calculatePuppyAlaGrade(
+    String femaleGrade,
+    String maleGrade,
+  ) {
+    final grades = [
+      femaleGrade.toUpperCase(),
+      maleGrade.toUpperCase(),
+    ];
+
+    // AL + AL = AL
+    if (grades.every((g) => g == 'AL')) {
+      return 'AL';
+    }
+
+    // ALF3 + ALF3 or AL = AL
+    if (
+      grades.contains('ALF3') &&
+      (grades.contains('ALF3') || grades.contains('AL'))
+    ) {
+      return 'AL';
+    }
+
+    // ALF2 progression
+    if (
+      grades.contains('ALF2') &&
+      (grades.contains('ALF2') ||
+          grades.contains('ALF3') ||
+          grades.contains('AL'))
+    ) {
+      return 'ALF3';
+    }
+
+    // ALF1 progression
+    if (
+      grades.contains('ALF1') &&
+      (grades.contains('ALF1') ||
+          grades.contains('ALF2') ||
+          grades.contains('ALF3') ||
+          grades.contains('AL'))
+    ) {
+      return 'ALF2';
+    }
+
+    // LO / parent breed resets
+    if (
+      grades.any((g) =>
+          g.startsWith('LO') ||
+          g.contains('POODLE') ||
+          g.contains('COCKER') ||
+          g.contains('LABRADOR') ||
+          g.contains('SPOODLE'))
+    ) {
+      return 'ALF1';
+    }
+
+    return 'Review Required';
+  }
+//====================
+  Widget _buildColourPrediction(
+    Map<String, String> female,
+    Map<String, String> male,
+  ) {
+    final genotypeMap =
+        GeneticsService.buildGenotypeMap(
+          female,
+          male,
+        );
+
+    final results =
+        GeneticsService.buildPhenotypes(
+          genotypeMap,
+        );
+
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(12),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              "🎨 Expected Colours",
+              style: TextStyle(fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(height: 8),
+            ...results.entries.map((e) => Text(
+                  "${e.key}: ${e.value}%",
+                )),
+          ],
+        ),
+      ),
+    );
+  }
+///
+  bool hasTanPoints(String? a) {
+    if (a == null) return false;
+
+    return a.contains('at');
+  }
+
+  bool allowsAExpression(String? k) {
+    if (k == null) return false;
+
+    return k.contains('ky');
+  }
+
+  bool phantomPossible(
+    String? fA,
+    String? mA,
+    String? fK,
+    String? mK,
+  ) {
+    final aOk =
+        hasTanPoints(fA) || hasTanPoints(mA);
+
+    final kOk =
+        allowsAExpression(fK) || allowsAExpression(mK);
+
+    return aOk && kOk;
+  }
+///
   Future<double?> _calculateIBC(String femaleAla, String maleAla) async {
     try {
       final femalePedigree = await Supabase.instance.client.rpc(
@@ -411,6 +533,8 @@ class _BreedingPlanCardState extends State<BreedingPlanCard> {
                             female['dog_ala'],
                             male['dog_ala'],
                           ),
+
+                          
                           builder: (context, snapshot) {if (!snapshot.hasData) {
                             return const Text("🔥 Match Score: ...");
                           }
@@ -521,8 +645,7 @@ class _BreedingPlanCardState extends State<BreedingPlanCard> {
                             );
                           },
                         ),
-                      const SizedBox(height: 12),
-                      _buildColourPrediction(female, male),
+                      
                       const SizedBox(height: 12),
                       _buildComparison(female, male),
                       const SizedBox(height: 12),
@@ -599,7 +722,22 @@ class _BreedingPlanCardState extends State<BreedingPlanCard> {
       ],
     );
   }
-// 
+//        Get Health Status
+  Map<String, String> getHealthStatus(Map<String, dynamic> dogHealth) {
+    final result = <String, String>{};
+
+    for (final entry in dogHealth.entries) {
+      final test = entry.key;
+      final value = entry.value?.toString().toLowerCase();
+
+      if (value == 'clear') result[test] = 'clear';
+      if (value == 'carrier') result[test] = 'carrier';
+      if (value == 'affected') result[test] = 'affected';
+    }
+
+    return result;
+  }
+//
   Widget _buildActions(Map<String, dynamic> plan) {
     return Column(
       children: [
@@ -1038,22 +1176,12 @@ class _BreedingPlanCardState extends State<BreedingPlanCard> {
         final femaleDNA = snapshot.data![0] as List<Map<String, dynamic>>;
         final maleDNA   = snapshot.data![1] as List<Map<String, dynamic>>;
 
+        final fDNA = _dnaToMap(femaleDNA);
+        final mDNA = _dnaToMap(maleDNA);
+
         return Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text(
-              "DNA Summary",
-              style: TextStyle(fontWeight: FontWeight.bold),
-            ),
-            const SizedBox(height: 6),
-
-            Text("♀ ${female['dog_name']}"),
-            Text(femaleDNA.isEmpty ? 'No DNA' : _dnaToString(femaleDNA)),
-
-            const SizedBox(height: 6),
-
-            Text("♂ ${male['dog_name']}"),
-            Text(maleDNA.isEmpty ? 'No DNA' : _dnaToString(maleDNA)),
+            _buildColourPrediction(fDNA, mDNA),
           ],
         );
       },
@@ -1182,28 +1310,89 @@ class _BreedingPlanCardState extends State<BreedingPlanCard> {
             _getDNA(male['id']),
             _getNose(female['id']),
             _getNose(male['id']),
+            _getHealth(female['id']),
+            _getHealth(male['id']),
           ]),
           builder: (context, snapshot) {
             if (!snapshot.hasData) {
               return const Text("Loading...");
             }
 
-            final fDNA = _dnaToMap(snapshot.data![0] as List<Map<String, dynamic>>);
-            final mDNA = _dnaToMap(snapshot.data![1] as List<Map<String, dynamic>>);
+            final fDNA = _dnaToMap(
+              snapshot.data![0] as List<Map<String, dynamic>>,
+            );
 
-            final fNose = snapshot.data![2];
-            final mNose = snapshot.data![3];
+            final mDNA = _dnaToMap(
+              snapshot.data![1] as List<Map<String, dynamic>>,
+            );
+            final puppyGrade = _calculatePuppyAlaGrade(
+              female['ala_grade'] ?? '',
+              male['ala_grade'] ?? '',
+            );
 
-            final warnings = GeneticsService.breedingWarnings(fDNA, mDNA);
+            final fNose = snapshot.data![2] as String?;
+            final mNose = snapshot.data![3] as String?;
+
+            final femaleHealth =
+                snapshot.data![4] as Map<String, String>;
+
+            final maleHealth =
+                snapshot.data![5] as Map<String, String>;
+
+            final warnings =
+                GeneticsService.breedingWarnings(fDNA, mDNA);
+
+            final healthWarnings =
+                buildHealthWarnings(
+                  femaleHealth,
+                  maleHealth,
+                );
 
             return Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-
                 _row(
                   "Nose",
-                  noseBadge(fNose as String?),
-                  noseBadge(mNose as String?),
+                  noseBadge(fNose),
+                  noseBadge(mNose),
+                ),
+
+                const SizedBox(height: 12),
+
+                _row(
+                  "A Locus",
+                  Text(fDNA['A'] ?? '-'),
+                  Text(mDNA['A'] ?? '-'),
+                ),
+
+                _row(
+                  "B Locus",
+                  Text(fDNA['B'] ?? '-'),
+                  Text(mDNA['B'] ?? '-'),
+                ),
+
+                _row(
+                  "E Locus",
+                  Text(fDNA['E'] ?? '-'),
+                  Text(mDNA['E'] ?? '-'),
+                ),
+
+                 _row(
+                  "K Locus",
+                  Text(fDNA['K'] ?? '-'),
+                  Text(mDNA['K'] ?? '-'),
+                ),
+
+                const SizedBox(height: 12),
+
+                Center(
+                  child: Text(
+                    "Expected Puppy Grade: $puppyGrade",
+                    style: const TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
                 ),
 
                 const SizedBox(height: 10),
@@ -1219,19 +1408,53 @@ class _BreedingPlanCardState extends State<BreedingPlanCard> {
                       border: Border.all(color: Colors.red),
                     ),
                     child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
+                      crossAxisAlignment:
+                          CrossAxisAlignment.start,
                       children: warnings.map((w) {
-                        return Text(
-                          w,
-                          style: const TextStyle(
-                            color: Colors.red,
-                            fontWeight: FontWeight.bold,
+                        return Padding(
+                          padding: const EdgeInsets.symmetric(
+                            vertical: 2,
+                          ),
+                          child: Text(
+                            w,
+                            style: const TextStyle(
+                              color: Colors.red,
+                              fontWeight: FontWeight.bold,
+                            ),
                           ),
                         );
                       }).toList(),
                     ),
                   ),
 
+                if (healthWarnings.isNotEmpty)
+                  Container(
+                    width: double.infinity,
+                    margin: const EdgeInsets.only(bottom: 12),
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: Colors.orange.shade100,
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: Colors.orange),
+                    ),
+                    child: Column(
+                      crossAxisAlignment:
+                          CrossAxisAlignment.start,
+                      children: healthWarnings.map((w) {
+                        return Padding(
+                          padding: const EdgeInsets.symmetric(
+                            vertical: 2,
+                          ),
+                          child: Text(
+                            w,
+                            style: const TextStyle(
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        );
+                      }).toList(),
+                    ),
+                  ),
               ],
             );
           },
@@ -1286,6 +1509,35 @@ class _BreedingPlanCardState extends State<BreedingPlanCard> {
     }
   }
 
+    ////////////////////
+    ///.  Get Health ///
+    ////////////////////
+    Future<Map<String, String>> _getHealth(String dogId) async {
+      try {
+        final res = await Supabase.instance.client
+            .from('dna_health')
+            .select()
+            .eq('dog_id', dogId);
+
+        final map = <String, String>{};
+
+        for (final row in res) {
+          final test = row['test_name'];
+          final result = row['result'];
+
+          if (test != null && result != null) {
+            map[test] = result.toString().toLowerCase();
+          }
+        }
+
+        return map;
+      } catch (e) {
+        print("HEALTH FETCH ERROR: $e");
+        return {};
+      }
+    }
+    ///
+
   Map<String, String> _dnaToMap(List<Map<String, dynamic>> dna) {
     final map = <String, String>{};
 
@@ -1319,83 +1571,58 @@ class _BreedingPlanCardState extends State<BreedingPlanCard> {
       ),
     );
   }
-  //..
+  /////////////////////////////////////
+  //..     Build Health Warnings.   ///
+  /////////////////////////////////////
+   List<String> buildHealthWarnings(
+      Map<String, String> female,
+      Map<String, String> male,
+    ) {
+      final warnings = <String>[];
+
+      final tests = {...female.keys, ...male.keys};
+
+      for (final test in tests) {
+        final f = female[test];
+        final m = male[test];
+
+        if (f == 'affected' || m == 'affected') {
+          warnings.add("🚨 $test: Affected present — DO NOT BREED");
+        } else if (f == 'carrier' && m == 'carrier') {
+          warnings.add("⚠ $test: Carrier × Carrier risk");
+        }
+      }
+
+      return warnings;
+    } 
     
   // ==============================
   // 🧬 DNA PARSE + COLOUR ENGINE
   // ==============================
 
-  Map<String, String> _parseDNA(String dna) {
-    final Map<String, String> genes = {};
+  List<String> _splitAlleles(String genotype) {
+    return genotype.split('/');
+  }
 
-    final parts = dna.split(',');
+  Map<String, double> _punnettSquare(String f, String m) {
+    final fAlleles = _splitAlleles(f);
+    final mAlleles = _splitAlleles(m);
 
-    for (var p in parts) {
-      final clean = p.trim().toUpperCase();
+    final results = <String, double>{};
 
-      if (clean.contains('E')) genes['E'] = clean;
-      if (clean.contains('B')) genes['B'] = clean;
-    }
+    for (var fa in fAlleles) {
+      for (var ma in mAlleles) {
+        final combo = [fa, ma]..sort();
+        final key = "${combo[0]}/${combo[1]}";
 
-    return genes;
+        results[key] = (results[key] ?? 0) + 0.25;
       }
-      bool isChocolateCarrier(Map<String, String> dna) {
-      final b = dna['B'] ?? '';
-      return b.contains('b');
     }
 
-    Widget _buildColourPrediction(
-      Map<String, dynamic> female,
-      Map<String, dynamic> male,
-    ) {
-      return FutureBuilder(
-        future: Future.wait([
-          _getDNA(female['id']),
-          _getDNA(male['id']),
-        ]),
-        builder: (context, snapshot) {
-          if (snapshot.hasError) {
-            print("COLOUR ERROR: ${snapshot.error}");
-            return const Text("Error loading prediction");
-          }
+    return results;
+  }
 
-          if (!snapshot.hasData) {
-            return const Padding(
-              padding: EdgeInsets.all(8),
-              child: CircularProgressIndicator(),
-            );
-          }
-
-          final fDNA = _dnaToMap(snapshot.data![0] as List<Map<String, dynamic>>);
-          final mDNA = _dnaToMap(snapshot.data![1] as List<Map<String, dynamic>>);
-          final warnings = GeneticsService.breedingWarnings(fDNA, mDNA);
-
-          if (fDNA.isEmpty || mDNA.isEmpty) {
-            return const Text("DNA required for colour prediction");
-          }
-
-          final results = _predictColoursFromMap(fDNA, mDNA);
-// Expected Colours End
-   
-          return Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const Text(
-                "Expected Colours",
-                style: TextStyle(fontWeight: FontWeight.bold),
-              ),
-              const SizedBox(height: 6),
-
-              ...results.entries.map(
-                (e) => Text("• ${e.value}% ${e.key}"),
-              ),
-            ],
-          );
-        },
-      );
-    }
-
-
+  // 👇 THEN your existing function
   Map<String, int> _predictColoursFromMap(
     Map<String, String> f,
     Map<String, String> m,
@@ -1416,46 +1643,63 @@ class _BreedingPlanCardState extends State<BreedingPlanCard> {
   final fA = clean(f['A']);
   final mA = clean(m['A']);
 
+  // 🧬 LEVEL 2 — REAL A LOCUS CALCULATION
+  final aResults = _punnettSquare(fA, mA);
+
+  double phantomChance = 0;
+
+  aResults.forEach((genotype, prob) {
+    if (genotype == 'at/at') {
+            phantomChance += prob;
+    }
+  });
+
+  print("🧬 A LOCUS RESULTS: $aResults");
+  print("🧬 PHANTOM CHANCE: $phantomChance");
+
   // ✅ DEFINE RESULTS FIRST
   final results = <String, int>{};
 
   // ✅ NOW SAFE TO USE
   final bothEE = (fE == 'e/e' && mE == 'e/e');
   final chocolate = (fB == 'b/b' && mB == 'b/b');
-  final phantomPossible = (fA.contains('at') && mA.contains('at'));
-
+  final phantomAllowed =
+    phantomPossible(fA, mA, f['K'], m['K']);
+  ///
+  ///
     if (bothEE) {
+    // all pups express recessive red base
+    results['Caramel'] = 100;
+
+    // chocolate modifies shade, not replaces caramel
     if (chocolate) {
-      results['Chocolate'] = 60;
-
-      if (phantomPossible) {
-        results['Phantom'] = 25;
-        results['Caramel'] = 15;
-      } else {
-        results['Caramel'] = 40;
-      }
-    } else {
-      results['Caramel'] = 75;
-
-      if (phantomPossible) {
-        results['Phantom'] = 25;
-      }
+      results['Chocolate-based Caramel'] = 100;
     }
 
+    // phantom is a pattern overlay, not separate base colour
+    if (phantomAllowed && phantomChance > 0) {
+      results['Phantom Pattern'] =
+          (phantomChance * 100).round();
+    }
   } else {
+    // non-ee litters
+
     if (chocolate) {
-      results['Chocolate'] = 50;
+      results['Chocolate'] = 100;
+    } else {
+      results['Black'] = 100;
     }
 
-    if (phantomPossible) {
-      results['Phantom'] = 25;
+    if (phantomAllowed && phantomChance > 0) {
+      results['Phantom Pattern'] =
+          (phantomChance * 100).round();
     }
-
-    results['Black'] = 25;
   }
 
-  return results;
-  }
+  results.removeWhere((key, value) => value <= 0);
+
+    return results;
+    }
   //''
   Map<String, String> _parseOrivet(String text) {
     final result = <String, String>{};

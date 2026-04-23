@@ -14,31 +14,26 @@ class DogCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // 🔥 GET HERO IMAGE FROM dog_photos
-    final fileName = dog['hero'];
-      final dogAla = dog['dog_ala'];
+    final dogAla = dog['dog_ala'];
 
-      String? imageUrl;
+    // from SQL view
+    final fileName =
+        dog['hero_file_name'] ??
+        dog['file_name'] ??
+        dog['url'];
 
-      if (fileName != null && dogAla != null) {
-        imageUrl = Supabase.instance.client.storage
-            .from('dog_files')
-            .getPublicUrl('$dogAla/photos/$fileName');
-      }
+    String? imageUrl;
 
-    String age = '';
-    final dobRaw = dog['dob'];
-    if (dobRaw != null) {
-      age = calculateDogAge(dobRaw.toString());
+    if (dogAla != null && fileName != null) {
+      imageUrl = Supabase.instance.client.storage
+          .from('dog_files')
+          .getPublicUrl(
+            '$dogAla/photos/$fileName',
+          );
     }
 
-    final isUnderFive = age.contains('y')
-        ? int.tryParse(age.split('y').first.trim()) != null &&
-            int.parse(age.split('y').first.trim()) < 5
-        : false;
-
     return InkWell(
-      onTap: onTap, // 👈 THIS FIXES NAVIGATION
+      onTap: onTap,
       borderRadius: BorderRadius.circular(12),
       child: Container(
         decoration: BoxDecoration(
@@ -52,50 +47,56 @@ class DogCard extends StatelessWidget {
           ],
         ),
         child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // ✅ IMAGE (ONLY ONE)
-          ClipRRect(
-            borderRadius:
-                const BorderRadius.vertical(top: Radius.circular(12)),
-            child: imageUrl != null
-                ? AspectRatio(
-                    aspectRatio: 1.2,
-                    child: Image.network(
-                      imageUrl,
-                      fit: BoxFit.cover,
-                      alignment: Alignment.topCenter,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            ClipRRect(
+              borderRadius: const BorderRadius.vertical(
+                top: Radius.circular(12),
+              ),
+              child: imageUrl != null
+                  ? AspectRatio(
+                      aspectRatio: 1.2,
+                      child: Image.network(
+                        imageUrl,
+                        fit: BoxFit.cover,
+                        alignment: Alignment.topCenter,
+                        errorBuilder: (_, __, ___) =>
+                            Container(
+                          height: 110,
+                          color: Colors.grey.shade300,
+                        ),
+                      ),
+                    )
+                  : Container(
+                      height: 110,
+                      color: Colors.grey.shade300,
                     ),
-                  )
-                : Container(
-                    height: 110,
-                    color: Colors.grey.shade300,
-                  ),
-          ),
-
-          // ✅ TEXT
-          Padding(
-            padding: const EdgeInsets.all(8),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  dog['dog_name'] ?? '',
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                ),
-                Text(
-                  dog['dog_ala'] ?? '',
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                ),
-              ],
             ),
-          ),
-        ],
-      ),
+
+            Padding(
+              padding: const EdgeInsets.all(8),
+              child: Column(
+                crossAxisAlignment:
+                    CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    dog['dog_name'] ?? '',
+                    maxLines: 1,
+                    overflow:
+                        TextOverflow.ellipsis,
+                  ),
+                  Text(
+                    dog['dog_ala'] ?? '',
+                    maxLines: 1,
+                    overflow:
+                        TextOverflow.ellipsis,
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
       ),
     );
- 
   }
 }

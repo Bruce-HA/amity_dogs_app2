@@ -47,14 +47,11 @@ class _DogPhotosTabState extends State<DogPhotosTab> {
 
     final response = await supabase
         .from('dog_photos')
-        .insert({
-          'dog_id': widget.dogId,
-          'dog_ala': widget.dogAla,
-          'url': "$id.webp",
-        })
-        .select();
-
-  print("INSERT RESPONSE: $response");
+        .select()
+        .eq('dog_id', widget.dogId)
+        .order('is_hero', ascending: false)
+        .order('display_order', ascending: true)
+        .order('created_at', ascending: false);
 
     photos = List<Map<String, dynamic>>.from(response);
 
@@ -120,11 +117,12 @@ class _DogPhotosTabState extends State<DogPhotosTab> {
   UPLOAD PHOTO
   =============================
   */
-  final id = DateTime.now().millisecondsSinceEpoch.toString();
 
   Future<void> uploadPhoto() async {
     final result = await FilePicker.platform.pickFiles(
-      type: FileType.image,
+      type: FileType.custom,
+      allowedExtensions: ['jpg', 'jpeg', 'png', 'heic', 'webp'],
+      allowMultiple: false,
     );
 
     if (result == null || result.files.single.path == null) return;
@@ -144,21 +142,20 @@ class _DogPhotosTabState extends State<DogPhotosTab> {
     print({
       'dog_id': widget.dogId,
       'dog_ala': widget.dogAla,
-      'url': "$id.webp",
+      'url': fileName,
     });
-
-  
-
-    
 
     final data = {
       'dog_id': widget.dogId,
       'dog_ala': widget.dogAla.toString(),
-      'file_name': "$id.webp",
-      'url': "$id.webp",
-      'thumb_url': "$id.webp",
+      'file_name': fileName,
+      'url': fileName,
+      'thumb_url': fileName,
       'description': '',
       'is_hero': false,
+      'display_order': photos.length,
+      'rotation': 0,
+      'photo_exists_on_zooeasy': false,
     };
 
     print("INSERTING: $data"); // 👈 IMPORTANT
@@ -209,9 +206,21 @@ class _DogPhotosTabState extends State<DogPhotosTab> {
               child: Stack(
                 children: [
                   Positioned.fill(
-                    child: Image.network(
-                      fullUrl,
-                      fit: BoxFit.cover,
+                    child: Transform.rotate(
+                      angle: ((photo['rotation'] ?? 0) as num).toDouble()
+                          * 3.1415926535 / 180,
+                      child: Image.network(
+                        fullUrl,
+                        fit: BoxFit.cover,
+                        errorBuilder: (_, __, ___) {
+                          return Container(
+                            color: Colors.grey.shade300,
+                            child: const Center(
+                              child: Icon(Icons.pets),
+                            ),
+                          );
+                        },
+                      ),
                     ),
                   ),
                   Positioned(

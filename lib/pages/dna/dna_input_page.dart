@@ -18,9 +18,9 @@ class DnaInputPage extends StatefulWidget {
   @override
   State<DnaInputPage> createState() => _DnaInputPageState();
 }
-
 class _DnaInputPageState extends State<DnaInputPage> {
   final supabase = Supabase.instance.client;
+  final dnaService = DNAService();
 
   String? selectedPrimary;
   String? selectedSecondary;
@@ -115,19 +115,11 @@ class _DnaInputPageState extends State<DnaInputPage> {
 
       final publicUrl = storage.getPublicUrl(filePath);
 
-      await supabase.from('dna_reports').insert({
-        'dog_id': widget.dogId,
-        'lab': 'Orivet',
-        'report_url': publicUrl,
-        'report_type': 'summary',
-        'test_date': DateTime.now().toIso8601String(),
-        'is_active': true,
-      });
-
-      await DNAService().processDNA(
-        dogId: widget.dogId,
-        fileBytes: bytes,
-      );
+        await dnaService.processDNA(
+          dogId: widget.dogId,
+          fileBytes: bytes,
+          fileUrl: publicUrl,
+        );
 
       if (!mounted) return;
 

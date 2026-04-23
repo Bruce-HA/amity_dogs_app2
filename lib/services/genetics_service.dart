@@ -70,14 +70,64 @@ class GeneticsService {
   ) {
     final results = <String, double>{};
 
-    // Simplified for now: iterate combinations later upgrade
+    final e = genotypeMap['E'] ?? {};
+    final b = genotypeMap['B'] ?? {};
+    final a = genotypeMap['A'] ?? {};
+    final k = genotypeMap['K'] ?? {};
 
-    genotypeMap.forEach((locus, values) {
-      values.forEach((geno, pct) {
-        // placeholder logic
-        results[geno] = (results[geno] ?? 0) + pct;
+    double caramel = 0;
+    double chocolate = 0;
+    double phantom = 0;
+    double black = 0;
+
+    // E locus → recessive red / caramel
+    e.forEach((geno, pct) {
+      if (geno == 'e/e') {
+        caramel += pct;
+      }
+    });
+
+    // B locus → chocolate pigment
+    b.forEach((geno, pct) {
+      if (geno.contains('b/b')) {
+        chocolate += pct;
+      }
+    });
+
+    // A + K → phantom possibility
+    a.forEach((aGeno, aPct) {
+        final hasTanPoints =
+      aGeno.contains('at/at') ||
+      aGeno.contains('ay/at') ||
+      aGeno.contains('at/a');
+
+      if (!hasTanPoints) return;
+
+      k.forEach((kGeno, kPct) {
+        final allowsPattern = kGeno.contains('ky');
+
+        if (allowsPattern) {
+          phantom += (aPct * kPct) / 100;
+        }
       });
     });
+
+    if (caramel > 0) {
+      results['Caramel'] = caramel;
+    }
+
+    if (chocolate > 0) {
+      results['Chocolate Pigment'] = chocolate;
+    }
+
+    if (phantom > 0) {
+      results['Phantom Pattern'] = phantom;
+    }
+
+    if (caramel == 0 && chocolate == 0) {
+      black = 100;
+      results['Black'] = black;
+    }
 
     return results;
   }

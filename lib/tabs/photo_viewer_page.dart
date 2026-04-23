@@ -110,20 +110,23 @@ class _PhotoViewerPageState extends State<PhotoViewerPage> {
     });
   }
   double currentRotation = 0;
-
+  
   Future<void> rotatePhoto() async {
-    final newRotation = (currentRotation + 90) % 360;
+    final newRotation =
+        ((currentRotation + 90) % 360).toInt();
 
     setState(() {
-      currentRotation = newRotation;
+      currentRotation = newRotation.toDouble();
     });
 
     await supabase
         .from('dog_photos')
-        .update({'rotation': newRotation})
+        .update({
+          'rotation': newRotation,
+        })
         .eq('id', widget.photo['id']);
 
-    // keep local data in sync
+    // keep local object synced
     widget.photo['rotation'] = newRotation;
   }
 
