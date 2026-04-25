@@ -5,7 +5,7 @@ import '../tabs/dog_breeding_tab.dart';
 import '../tabs/dog_photos_tab.dart';
 import '../tabs/dog_files_tab.dart';
 import '../tabs/dog_notes_tab.dart';
-import '../tabs/dna_tab.dart';
+import '../tabs/genetics_tab.dart';
 import 'dog_edit_page.dart';
 import 'people_detail_page.dart';
 import 'widgets/dog_card.dart';

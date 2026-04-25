@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import '../../tabs/dna_tab.dart'; 
+import '../../tabs/genetics_tab.dart'; 
 import '/services/breeding_plan_service.dart'; //djust path if needed
 
 class BreedingPlansPage extends StatelessWidget {

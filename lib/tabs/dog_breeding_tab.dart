@@ -6,7 +6,7 @@ import '../pages/select_male_page.dart';
 import '../pages/select_female_page.dart';
 import '../pages/widgets/breeding/breeding_plan_card.dart';
 import 'package:amity_dogs_app/pages/dna/dna_input_page.dart';
-import '../../tabs/dna_tab.dart';
+import 'genetics_tab.dart';
 import '../pages/dna/dna_display_page.dart';
 
 class DogBreedingTab extends StatefulWidget {

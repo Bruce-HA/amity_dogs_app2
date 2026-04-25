@@ -10,65 +10,76 @@ class DNAService {
   // MAIN ENTRY
   // ===============================
   Future<void> processDNA({
-  required String dogId,
-  required Uint8List fileBytes,
-  required String fileUrl,
-}) async {
-    var text = await _extractPdfText(fileBytes);
-
-    String diseaseText = text;
-    String traitsText = text;
-
-    final start = text.indexOf('Tests Reported');
-    final end = text.lastIndexOf('Traits');
-
-    if (start != -1 && end != -1 && end > start) {
-      diseaseText = text.substring(start, end);
-    }
+    required String dogId,
+    required Uint8List fileBytes,
+    required String fileUrl,
+  }) async {
     if (_running.contains(dogId)) {
       print("⛔ SKIPPED duplicate process for $dogId");
       return;
     }
-    _running.add(dogId); // 🔥 THIS WAS MISSING
 
-    traitsText = text; // 🔥 USE FULL PDF TEXT
-    
-    print("TRAITS TEXT:");
-    print(traitsText);
-    
-    final parsed = _parseOrivet(traitsText);
-
-    final loci = parsed['loci'] as Map<String, String>;
-    final String? testDate = parsed['test_date'];
-
-    print("LOCI FOUND: $loci");
-    print("📅 TEST DATE: $testDate");
-
-    final diseases = _extractDiseases(diseaseText);
-    final tests = _extractAllTests(diseaseText);
+    _running.add(dogId);
 
     try {
+      final text = await _extractPdfText(fileBytes);
 
-    await _saveDiseases(dogId, diseases);
-    // await _saveResults(dogId, tests);
+      String diseaseText = text;
+      String traitsText = text;
 
-    await Future.delayed(const Duration(seconds: 1));
+      final start = text.indexOf('Tests Reported');
+      final end = text.lastIndexOf('Traits');
 
-    await rebuildDNABank(dogId, loci, traitsText);
+      if (start != -1 && end != -1 && end > start) {
+        diseaseText = text.substring(start, end);
+      }
 
-    await supabase.from('dna_reports').upsert({
-      'dog_id': dogId,
-      'lab': 'Orivet',
-      'report_type': 'summary',
-      'report_url': fileUrl,
-      'test_date': testDate,
-      'is_active': true,
-    }, onConflict: 'dog_id,report_type');
+      traitsText = text;
+
+      print("TRAITS TEXT:");
+      print(traitsText);
+
+      final parsed = _parseOrivet(traitsText);
+
+      final loci =
+          parsed['loci'] as Map<String, String>;
+
+      final String? testDate =
+          parsed['test_date'];
+
+      print("LOCI FOUND: $loci");
+      print("📅 TEST DATE: $testDate");
+
+      final diseases =
+          _extractDiseases(diseaseText);
+
+      final tests =
+          _extractAllTests(diseaseText);
+
+      await _saveDiseases(dogId, diseases);
+
+      await Future.delayed(
+        const Duration(seconds: 1),
+      );
+
+      await rebuildDNABank(
+        dogId,
+        loci,
+        traitsText,
+      );
+
+      await supabase.from('dna_reports').upsert({
+        'dog_id': dogId,
+        'lab': 'Orivet',
+        'report_type': 'summary',
+        'report_url': fileUrl,
+        'test_date': testDate,
+        'is_active': true,
+      }, onConflict: 'dog_id,report_type');
 
     } finally {
-  _running.remove(dogId);
-}
-  
+      _running.remove(dogId);
+    }
   }
 ////
   String? _formatDate(String raw) {
@@ -119,50 +130,11 @@ class DNAService {
   Map<String, dynamic> _parseOrivet(String text) {
     final result = <String, String>{};
 
-    // 🔥 STEP 1 — CLEAN OCR SPACING FIRST
     final clean = text
         .toLowerCase()
         .replaceAll('\n', ' ')
-        .replaceAll(RegExp(r'\s+'), ' ')
+        .replaceAll(RegExp(r'\s+'), ' ');
 
-    // 🔥 NORMALISE ALL SPACING VARIANTS
-        .replaceAll(RegExp(r'b\s*/\s*b'), 'b/b')
-        .replaceAll(RegExp(r'e\s*/\s*e'), 'e/e')
-
-        .replaceAll(RegExp(r'b\s+b'), 'b/b')
-        .replaceAll(RegExp(r'b\s*:\s*b\s*/\s*b'), 'b/b')
-        .replaceAll(RegExp(r'\ba\s*t\b'), 'at')
-        .replaceAll(RegExp(r'\ba\s*y\b'), 'ay')
-        .replaceAll(RegExp(r'\bk\s*b\b'), 'kb')
-        .replaceAll(RegExp(r'\bk\s*y\b'), 'ky')
-
-        .replaceAll(RegExp(r'k\s*y\s*/\s*k\s*y'), 'ky/ky')
-        .replaceAll(RegExp(r'k\s*b\s*/\s*k\s*y'), 'kb/ky')
-        .replaceAll(RegExp(r'k\s*y\s*/\s*k\s*b'), 'ky/kb')
-        .replaceAll(RegExp(r'\bbb\b'), 'b/b')
-        .replaceAll(RegExp(r'a\s*y\s*/\s*a\s*t'), 'ay/at')
-        .replaceAll(RegExp(r'a\s*t\s*/\s*a\s*t'), 'at/at')
-        .replaceAll(RegExp(r'a\s*y\s*/\s*a\s*y'), 'ay/ay');
-
-    // 🟤 B LOCUS — TARGETED EXTRACTION
-    final bMatch = RegExp(
-      r'b\s*locus[^a-z0-9]{0,20}([a-z])\s*[/\s]\s*([a-z])',
-      caseSensitive: false,
-    ).firstMatch(clean);
-
-    if (bMatch != null) {
-      final a1 = bMatch.group(1);
-      final a2 = bMatch.group(2);
-
-      if (a1 != null && a2 != null) {
-        result['B'] = '$a1/$a2';
-      }
-
-      print("🟤 B MATCH: ${bMatch.group(0)}");
-    }
-
-  //
-    // 📅 TEST DATE EXTRACTION
     String? testDate;
 
     final dateMatch = RegExp(
@@ -172,58 +144,121 @@ class DNAService {
 
     if (dateMatch != null) {
       final raw = dateMatch.group(1);
-
       if (raw != null) {
         testDate = _formatDate(raw);
       }
     }
-
-print("📅 TEST DATE: $testDate");
-  //
-    // 🟤 A LOCUS — MUST BE OUTSIDE
-    final aMatch = RegExp(
-      r'a\s*locus[\s\S]{0,80}?(ay|at|a)\s*[/\s]\s*(ay|at|a)',
-      caseSensitive: false,
-    ).firstMatch(clean);
-
-    if (aMatch != null) {
-      final a1 = aMatch.group(1);
-      final a2 = aMatch.group(2);
-
-      if (a1 != null && a2 != null) {
-        result['A'] = '$a1/$a2';
+    // B locus
+      if (
+          clean.contains('brown/chocolate') ||
+          clean.contains('brown/chocolate, liver') ||
+          clean.contains('brown/chocolate liver') ||
+          clean.contains('bs bs/bs') ||
+          clean.contains('bs bs / bs') ||
+          clean.contains('bs b s / b s') ||
+          clean.contains('bs/bs') ||
+          clean.contains('b s / b s')) {
+        result['B'] = 'b/b';
       }
 
-      print("🟤 A MATCH: ${aMatch.group(0)}");
+    // E locus
+    if (clean.contains('e/e')) {
+      result['E'] = 'e/e';
     }
 
+  // K locus (robust parser for broken PDF spacing)
 
-        // 🔥 STEP 2 — SIMPLE DETECTION (NO GUESSING)
-        if (clean.contains('b/b')) result['B'] = 'b/b';
-        if (clean.contains('e/e')) result['E'] = 'e/e';
-        if (clean.contains('bb')) result['B'] = 'b/b';
-        if (clean.contains('ky/ky')) result['K'] = 'ky/ky';
-        if (clean.contains('kb/kb')) result['K'] = 'kb/kb';
-        if (clean.contains('kb/ky') || clean.contains('ky/kb')) {
-          result['K'] = 'kb/ky';
-        }
+    if (
+        clean.contains('kb / k y') ||
+        clean.contains('kb/k y') ||
+        clean.contains('kb / ky') ||
+        clean.contains('kb/ky') ||
+        clean.contains('ky/kb') ||
+        clean.contains('k locus (dominant black) kb / k y') ||
+        clean.contains('one copy dominant black (kb)')
+    ) {
+      result['K'] = 'kb/ky';
+    }
+    else if (
+        clean.contains('ky / ky') ||
+        clean.contains('ky/ky')
+    ) {
+      result['K'] = 'ky/ky';
+    }
+    else if (
+        clean.contains('kb / kb') ||
+        clean.contains('kb/kb')
+    ) {
+      result['K'] = 'kb/kb';
+    }
+    else if (
+        clean.contains('k/k')
+    ) {
+      result['K'] = 'K/K';
+    }
 
-    if (clean.contains('ay/at')) result['A'] = 'ay/at';
-    if (clean.contains('ay/ay')) result['A'] = 'ay/ay';
-    if (clean.contains('at/at')) result['A'] = 'at/at';
+  // A locus (regex parser — much safer)
+
+  final aMatch = RegExp(
+    r'a\s*t\s*/\s*a\b|a\s*t\s*/\s*a\s',
+    caseSensitive: false,
+  ).firstMatch(clean);
+
+  if (aMatch != null) {
+    result['A'] = 'at/a';
+  }
+  else if (RegExp(
+    r'a\s*y\s*/\s*a\s*t',
+    caseSensitive: false,
+  ).hasMatch(clean)) {
+    result['A'] = 'ay/at';
+  }
+  else if (RegExp(
+    r'a\s*t\s*/\s*a\s*t',
+    caseSensitive: false,
+  ).hasMatch(clean)) {
+    result['A'] = 'at/at';
+  }
+  else if (RegExp(
+    r'a\s*y\s*/\s*a\s*y',
+    caseSensitive: false,
+  ).hasMatch(clean)) {
+    result['A'] = 'ay/ay';
+  }
+  else if (RegExp(
+    r'a\s*y\s*/\s*a\b',
+    caseSensitive: false,
+  ).hasMatch(clean)) {
+    result['A'] = 'ay/a';
+  }
+  else if (RegExp(
+    r'a\s*/\s*a',
+    caseSensitive: false,
+  ).hasMatch(clean)) {
+    result['A'] = 'a/a';
+  }
+
+    // M locus
+    if (clean.contains('m [171bp] / m [171bp]')) {
+      result['M'] = 'm/m';
+    } else if (clean.contains('merle')) {
+      result['M'] = 'M/m';
+    }
+
+    // S locus
+    if (clean.contains('no piebald')) {
+      result['S'] = 'S/S';
+    } else if (clean.contains('parti coat colour')) {
+      result['S'] = 'sp/sp';
+    }
 
     print("🧬 PARSED LOCI: $result");
-    print("🧪 CLEAN TEXT SAMPLE:");
-    print("🔍 CONTAINS B LOCUS?");
-    print(clean.contains('b locus'));
-    print(clean.contains(' b '));
-    print(clean.substring(0, 500));
 
     return {
       'loci': result,
       'test_date': testDate,
     };
-    }
+  }
 
   // ===============================
   // SAVE DISEASES
@@ -402,4 +437,4 @@ print("📅 TEST DATE: $testDate");
       }).eq('id', dogId);
     }
   }
-}
+  }

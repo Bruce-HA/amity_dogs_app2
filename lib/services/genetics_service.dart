@@ -65,70 +65,83 @@ class GeneticsService {
 
     return result;
   }
-  static Map<String, double> buildPhenotypes(
-    Map<String, Map<String, double>> genotypeMap,
-  ) {
-    final results = <String, double>{};
+  
+      static Map<String, double> buildPhenotypes(
+        Map<String, Map<String, double>> genotypeMap,
+      ) {
+        final results = <String, double>{};
 
-    final e = genotypeMap['E'] ?? {};
-    final b = genotypeMap['B'] ?? {};
-    final a = genotypeMap['A'] ?? {};
-    final k = genotypeMap['K'] ?? {};
+        final b = genotypeMap['B'] ?? {};
+        final e = genotypeMap['E'] ?? {};
 
-    double caramel = 0;
-    double chocolate = 0;
-    double phantom = 0;
-    double black = 0;
+        double black = 0;
+        double chocolate = 0;
+        double caramel = 0;
+        double cream = 0;
 
-    // E locus → recessive red / caramel
-    e.forEach((geno, pct) {
-      if (geno == 'e/e') {
-        caramel += pct;
-      }
-    });
+        double gold = 0;
+        // =========================
+        // PRIMARY VISIBLE COLOUR ONLY
+        // Must total 100%
+        // =========================
 
-    // B locus → chocolate pigment
-    b.forEach((geno, pct) {
-      if (geno.contains('b/b')) {
-        chocolate += pct;
-      }
-    });
+                // =========================
+        // PRIMARY VISIBLE COLOUR ONLY
+        // Must total 100%
+        // =========================
 
-    // A + K → phantom possibility
-    a.forEach((aGeno, aPct) {
-        final hasTanPoints =
-      aGeno.contains('at/at') ||
-      aGeno.contains('ay/at') ||
-      aGeno.contains('at/a');
+        double chocolateChance = 0;
+        double caramelChance = 0;
 
-      if (!hasTanPoints) return;
+        b.forEach((geno, pct) {
+          if (geno.contains('b/b')) {
+            chocolateChance += pct;
+          }
+        });
 
-      k.forEach((kGeno, kPct) {
-        final allowsPattern = kGeno.contains('ky');
+        e.forEach((geno, pct) {
+          if (geno == 'e/e') {
+            caramelChance += pct;
+          }
+        });
 
-        if (allowsPattern) {
-          phantom += (aPct * kPct) / 100;
+        // e/e overrides visually
+        if (chocolateChance > 0 && caramelChance > 0) {
+          chocolate = chocolateChance * 0.5;
+          caramel = caramelChance * 0.3;
+          cream = caramelChance * 0.1;
+          gold = caramelChance * 0.1;
         }
-      });
-    });
+        else if (chocolateChance > 0) {
+          chocolate = chocolateChance;
+          black = 100 - chocolate;
+        }
+        else if (caramelChance > 0) {
+          caramel = caramelChance * 0.7;
+          cream = caramelChance * 0.15;
+          gold = caramelChance * 0.15;
+          black = 100 - caramelChance;
+        }
+        else {
+          black = 100;
+        }
 
-    if (caramel > 0) {
-      results['Caramel'] = caramel;
+        // =========================
+        // FINAL MAP
+        // =========================
+
+        void add(String name, double value) {
+          if (value > 0) {
+            results[name] = value;
+          }
+        }
+
+        add('Black', black);
+        add('Chocolate', chocolate);
+        add('Caramel', caramel);
+        add('Cream', cream);
+        add('Gold', gold);
+
+        return results;
+      }
     }
-
-    if (chocolate > 0) {
-      results['Chocolate Pigment'] = chocolate;
-    }
-
-    if (phantom > 0) {
-      results['Phantom Pattern'] = phantom;
-    }
-
-    if (caramel == 0 && chocolate == 0) {
-      black = 100;
-      results['Black'] = black;
-    }
-
-    return results;
-  }
-}

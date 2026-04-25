@@ -5,16 +5,19 @@ import 'package:syncfusion_flutter_pdf/pdf.dart';
 import 'dart:typed_data';
 import '../services/dna_service.dart';
 
-class DnaTab extends StatefulWidget {
-  final String dogId;
+class GeneticsTab extends StatefulWidget {
+    final String dogId;
 
-  const DnaTab({super.key, required this.dogId});
+    const GeneticsTab({
+      super.key,
+      required this.dogId,
+    });
 
-  @override
-  State<DnaTab> createState() => _DnaTabState();
-}
+    @override
+    State<GeneticsTab> createState() => _GeneticsTabState();
+  }
 
-class _DnaTabState extends State<DnaTab> {
+class _GeneticsTabState extends State<GeneticsTab> {
   final supabase = Supabase.instance.client;
   final noseColourController = TextEditingController();
   final coatColourController = TextEditingController();
@@ -133,6 +136,24 @@ class _DnaTabState extends State<DnaTab> {
 
   */
 ///..
+  Color _getHealthChipColor(String result) {
+    final value = result.toLowerCase();
+
+    if (value.contains('clear')) {
+      return Colors.green.shade100;
+    }
+
+    if (value.contains('carrier')) {
+      return Colors.orange.shade100;
+    }
+
+    if (value.contains('at risk')) {
+      return Colors.red.shade100;
+    }
+
+    return Colors.grey.shade200;
+  }
+///
   Future<void> loadDna() async {
     setState(() {
       isLoading = true;
@@ -140,11 +161,28 @@ class _DnaTabState extends State<DnaTab> {
 
     final dogResponse = await supabase
         .from('dogs')
-        .select('has_dna_summary')
+        .select(
+          'has_dna_summary, colour, second_colour, coat_type, nose_colour'
+        )
         .eq('id', widget.dogId)
         .maybeSingle();
 
     hasDna = dogResponse?['has_dna_summary'] == true;
+
+    coatColourController.text =
+        dogResponse?['colour'] ?? '';
+
+    secondCoatController.text =
+        dogResponse?['second_colour'] ?? '';
+
+    coatTypeController.text =
+        dogResponse?['coat_type'] ?? '';
+
+    if ((dogResponse?['nose_colour'] ?? '').toString().isNotEmpty) {
+      noseColourController.text =
+          dogResponse?['nose_colour'] ?? '';
+    }
+    
 
     if (hasDna) {
       final response = await supabase
@@ -184,18 +222,9 @@ class _DnaTabState extends State<DnaTab> {
   Widget build(BuildContext context) {
     print("BUILD DNA TAB — hasDna = $hasDna");
 
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('DNA Summary'),
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back),
-          onPressed: () {
-            Navigator.pop(context);
-          },
-        ),
-      ),
-
-      body: isLoading
+    return Padding(
+      padding: const EdgeInsets.all(16),
+      child: isLoading
         ? const Center(child: CircularProgressIndicator())
         : hasDna
             ? FutureBuilder(
@@ -223,42 +252,78 @@ class _DnaTabState extends State<DnaTab> {
                     children: [
                       // 🧬 Genetics
                       const Text(
-                        "Genetics",
-                        style:
-                            TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                      'Genetics Profile',
+                        style: TextStyle(
+                          fontSize: 22,
+                          fontWeight: FontWeight.bold,
+                        ),
+                    ),
+                      const SizedBox(height: 16),
+                      const Text(
+                        "Core Genetics",
+                        style: TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                        ),
                       ),
 
                       ...loci.map((locus) => Card(
-                            child: ListTile(
-                              title: Text(locus['locus'] ?? ''),
-                              subtitle: Text(
-                                '${locus['allele_1'] ?? ''} / ${locus['allele_2'] ?? ''}',
-                              ),
+                        child: ListTile(
+                          leading: const Icon(Icons.biotech),
+                          title: Text(
+                            locus['locus'] ?? '',
+                            style: const TextStyle(
+                              fontWeight: FontWeight.w600,
                             ),
-                          )),
+                          ),
+                          subtitle: Text(
+                            '${locus['allele_1'] ?? ''} / ${locus['allele_2'] ?? ''}',
+                          ),
+                        ),
+                      )),
 
                       const SizedBox(height: 20),
 
                       // 🧪 Health
                       const Text(
-                        "Health",
-                        style:
-                            TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                        "Health & Disease",
+                        style: TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                        ),
                       ),
 
                       ...health.map((h) => Card(
-                            child: ListTile(
-                              title: Text(h['test_name'] ?? ''),
-                              subtitle: Text(h['result'] ?? ''),
+                        child: ListTile(
+                          title: Text(
+                            h['test_name'] ?? '',
+                            style: const TextStyle(
+                              fontWeight: FontWeight.w600,
                             ),
-                          )),
+                          ),
+                          trailing: Chip(
+                            backgroundColor: _getHealthChipColor(
+                              h['result'] ?? '',
+                            ),
+                            label: Text(
+                              h['result'] ?? '',
+                              style: const TextStyle(
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          )
+                        ),
+                      )),
 
                           const SizedBox(height: 20),
 
                           // 🐕 Phenotype
-                          const Text(
-                            "Phenotype",
-                            style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                         const Text(
+                            "Phenotype Override",
+                            style: TextStyle(
+                              fontSize: 18,
+                              fontWeight: FontWeight.bold,
+                            ),
                           ),
 
                           Card(
@@ -301,16 +366,53 @@ class _DnaTabState extends State<DnaTab> {
                                     onPressed: () async {
                                       await supabase.from('dogs').update({
                                         'nose_colour': noseColourController.text,
-                                        'coat_colour': coatColourController.text,
+                                        'colour': coatColourController.text,
                                         'second_colour': secondCoatController.text,
                                         'coat_type': coatTypeController.text,
                                       }).eq('id', widget.dogId);
 
                                       ScaffoldMessenger.of(context).showSnackBar(
-                                        const SnackBar(content: Text("Saved")),
+                                        const SnackBar(
+                                          content: Text("Saved"),
+                                        ),
                                       );
                                     },
                                     child: const Text("Save Phenotype"),
+                                  ),
+
+                                  const SizedBox(height: 20),
+
+                                  Card(
+                                    child: Padding(
+                                      padding: const EdgeInsets.all(16),
+                                      child: Column(
+                                        crossAxisAlignment: CrossAxisAlignment.start,
+                                        children: [
+                                          const Text(
+                                            "Breeding Warnings",
+                                            style: TextStyle(
+                                              fontSize: 18,
+                                              fontWeight: FontWeight.bold,
+                                            ),
+                                          ),
+
+                                          const SizedBox(height: 12),
+
+                                          if (noseColourController.text.toLowerCase() == 'liver')
+                                            const Text(
+                                              "• Chocolate pigment present (b/b likely)",
+                                            ),
+
+                                          const Text(
+                                            "• Review carrier pairings before mating",
+                                          ),
+
+                                          const Text(
+                                            "• Check Merle (M locus) before merle breeding",
+                                          ),
+                                        ],
+                                      ),
+                                    ),
                                   ),
                                 ],
                               ),
@@ -320,12 +422,32 @@ class _DnaTabState extends State<DnaTab> {
                   );
                 },
               )
-            : Center(
-                child: ElevatedButton(
-                  onPressed: uploadDnaSummary,
-                  child: const Text('⬆️ Upload DNA Summary'),
-                ),
+            : 
+      Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            const Icon(
+              Icons.biotech,
+              size: 48,
+              color: Colors.grey,
+            ),
+            const SizedBox(height: 12),
+            const Text(
+              'No DNA Summary Uploaded',
+              style: TextStyle(
+                fontSize: 16,
+                fontWeight: FontWeight.w600,
               ),
+            ),
+            const SizedBox(height: 12),
+            ElevatedButton(
+              onPressed: uploadDnaSummary,
+              child: const Text('Upload DNA Summary'),
+            ),
+          ],
+        ),
+      ),
                 
     );
     

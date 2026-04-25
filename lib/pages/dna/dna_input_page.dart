@@ -25,6 +25,7 @@ class _DnaInputPageState extends State<DnaInputPage> {
   String? selectedPrimary;
   String? selectedSecondary;
   String? selectedNose;
+  String? selectedCoatType;
 
   bool isUploading = false;
   bool isSaving = false;
@@ -39,7 +40,7 @@ class _DnaInputPageState extends State<DnaInputPage> {
   Future<void> loadDog() async {
     final data = await supabase
         .from('dogs')
-        .select('colour, second_colour, nose_colour')
+        .select('colour, second_colour, coat_type, nose_colour')
         .eq('id', widget.dogId)
         .maybeSingle();
 
@@ -47,6 +48,7 @@ class _DnaInputPageState extends State<DnaInputPage> {
       selectedPrimary = data['colour'];
       selectedSecondary = data['second_colour'];
       selectedNose = data['nose_colour'];
+      selectedCoatType = data['coat_type'];
     }
 
     // 🐽 AUTO-FILL FROM DNA IF EMPTY
@@ -121,6 +123,14 @@ class _DnaInputPageState extends State<DnaInputPage> {
           fileUrl: publicUrl,
         );
 
+        await supabase
+          .from('dogs')
+          .update({
+            'has_dna_summary': true,
+            'dna_summary': publicUrl,
+          })
+          .eq('id', widget.dogId);
+
       if (!mounted) return;
 
       ScaffoldMessenger.of(context).showSnackBar(
@@ -151,6 +161,7 @@ class _DnaInputPageState extends State<DnaInputPage> {
       'colour': selectedPrimary,
       'second_colour': selectedSecondary,
       'nose_colour': selectedNose?.toLowerCase(),
+      'coat_type': selectedCoatType,
     }).eq('id', widget.dogId);
 
     if (mounted) {
@@ -207,6 +218,21 @@ class _DnaInputPageState extends State<DnaInputPage> {
               "Black",
               "Liver",
             ], (v) => setState(() => selectedNose = v)),
+
+            const SizedBox(height: 16),
+
+            _dropdown(
+              "Coat Type",
+              selectedCoatType,
+              [
+                "Straight",
+                "Wavy",
+                "Curly",
+                "Fleece",
+                "Wool",
+              ],
+              (v) => setState(() => selectedCoatType = v),
+            ),
 
             const SizedBox(height: 20),
 

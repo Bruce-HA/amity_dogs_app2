@@ -37,7 +37,7 @@ dependencies:
   file_picker: ^8.0.0
   flutter_dotenv: ^6.0.0
   flutter_typeahead: ^4.6.2
-  fl_chart: ^0.66.0
+  fl_chart: ^0.68.0
   flutter_launcher_icons: ^0.13.1
   #flutter_launcher_icons:
   #  ios: true

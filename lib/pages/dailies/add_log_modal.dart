@@ -12,6 +12,7 @@ Future<void> showAddLogModal(
   final noteController = TextEditingController();
   String category = initialCategory;
   DateTime selectedTime = DateTime.now();
+  bool isSaving = false;
 
   await showModalBottomSheet(
     context: context,
@@ -78,28 +79,33 @@ Future<void> showAddLogModal(
                 const SizedBox(height: 16),
 
                 ElevatedButton(
-                  onPressed: () async {
-                    await supabase.from('whelping_logs').insert({
-                      'litter_id': litter['id'],
-                      'litter_full_code': litter['litter_full_code'],
-                      'ala_litter_number': litter['ala_litter_number'],
-                      'short_litter_name': litter['short_litter_name'],
-                      'event_time': selectedTime.toIso8601String(),
-                      'note': noteController.text,
-                      'category': category,
-                      'created_by_name': AppUser.name,
-                    });
+                  onPressed: isSaving
+                      ? null
+                      : () async {
+                          setState(() {
+                            isSaving = true;
+                          });
 
-                    Navigator.pop(context); // close modal
+                          await supabase.from('whelping_logs').insert({
+                            'litter_id': litter['id'],
+                            'litter_full_code': litter['litter_full_code'],
+                            'ala_litter_number': litter['ala_litter_number'],
+                            'short_litter_name': litter['short_litter_name'],
+                            'event_time': selectedTime.toIso8601String(),
+                            'note': noteController.text,
+                            'category': category,
+                            'created_by_name': AppUser.name,
+                          });
 
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(
-                        content: Text('Saved'),
-                        duration: Duration(seconds: 2),
-                      ),
-                    );
-                  },
-                  child: const Text("Save"),
+                          Navigator.pop(context);
+
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                              content: Text('Saved'),
+                            ),
+                          );
+                        },
+                  child: Text(isSaving ? "Saving..." : "Save"),
                 ),
 
                 const SizedBox(height: 20),
@@ -233,32 +239,96 @@ Future<void> showEditLogModal(
                 //=====================
                 //. update button.   //
                 //====================
-              const SizedBox(height: 16),
-                ElevatedButton(
-                  onPressed: () async {
-                    await supabase
-                        .from('whelping_logs')
-                        .update({
-                      'category': category,
-                      'note': noteController.text,
-                      'event_time':
-                          selectedTime.toIso8601String(),
-                      'modified_by_name': AppUser.name,
-                      'modified_at':
-                          DateTime.now().toIso8601String(),
-                    })
-                        .eq('id', log['id']);
+     //         const SizedBox(height: 16),
+                Row(
+                  children: [
+                    Expanded(
+                      child: OutlinedButton(
+                        onPressed: () async {
+                          final confirm = await showDialog<bool>(
+                            context: context,
+                            builder: (_) => AlertDialog(
+                              title: const Text("Delete Entry"),
+                              content: const Text(
+                                "Are you sure you want to delete this entry?"
+                              ),
+                              actions: [
+                                TextButton(
+                                  onPressed: () => Navigator.pop(context, false),
+                                  child: const Text("Cancel"),
+                                ),
+                                ElevatedButton(
+                                  onPressed: () => Navigator.pop(context, true),
+                                  style: ElevatedButton.styleFrom(
+                                    backgroundColor: Colors.red,
+                                  ),
+                                  child: const Text("Delete"),
+                                ),
+                              ],
+                            ),
+                          );
 
-                    Navigator.pop(context);
+                          if (confirm != true) return;
 
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(
-                        content: Text('Updated'),
-                        duration: Duration(seconds: 2),
+                          await Supabase.instance.client
+                            .from('whelping_logs')
+                            .delete()
+                            .eq('id', log['id']);
+
+                        Navigator.pop(context, true);
+
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Text('Deleted'),
+                            duration: Duration(seconds: 2),
+                          ),
+                        );
+                        },
+                        style: OutlinedButton.styleFrom(
+                          foregroundColor: Colors.red,
+                          side: const BorderSide(color: Colors.red),
+                          padding: const EdgeInsets.symmetric(vertical: 14),
+                        ),
+                        child: const Text(
+                          "Delete",
+                          style: TextStyle(
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
                       ),
-                    );
-                  },
-                  child: const Text("Update"),
+                    ),
+
+                    const SizedBox(width: 12),
+
+                    Expanded(
+                      child: ElevatedButton(
+                        onPressed: () async {
+                          await supabase
+                              .from('whelping_logs')
+                              .update({
+                                'category': category,
+                                'note': noteController.text,
+                                'event_time': selectedTime.toIso8601String(),
+                              })
+                              .eq('id', log['id'])
+                              .order('event_time', ascending: false);
+
+                          Navigator.pop(context, true);
+
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                              content: Text('Updated'),
+                              duration: Duration(seconds: 2),
+                            ),
+                          );
+                        },
+                        style: ElevatedButton.styleFrom(
+                          padding: const EdgeInsets.symmetric(vertical: 14),
+                        ),
+                        child: const Text("Update"),
+                      ),
+                    ),
+                  ],
                 ),
 
                 const SizedBox(height: 20),

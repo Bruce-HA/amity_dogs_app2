@@ -8,6 +8,8 @@ import 'package:amity_dogs_app/pages/breeding/trial_mating_page.dart';
 import '../../mating/mating_page.dart';
 import '../../../utils/display_helpers.dart';
 import '../../../services/genetics_service.dart';
+import '../../breeding/breeding_summary.dart';
+import 'package:fl_chart/fl_chart.dart';
 
 
 class BreedingPlanCard extends StatefulWidget {
@@ -148,40 +150,367 @@ class _BreedingPlanCardState extends State<BreedingPlanCard> {
     return 'Review Required';
   }
 //====================
-  Widget _buildColourPrediction(
+  Widget _buildTraitProgressCard(
     Map<String, String> female,
     Map<String, String> male,
   ) {
-    final genotypeMap =
-        GeneticsService.buildGenotypeMap(
-          female,
-          male,
-        );
+    final traits = <Map<String, dynamic>>[
+      {
+        'label': 'Phantom Capable',
+        'value': _traitPercent(
+          female['A'],
+          male['A'],
+          trigger: 'at',
+        ),
+        'icon': Icons.pets,
+      },
+      {
+        'label': 'Tan Points',
+        'value': _traitPercent(
+          female['A'],
+          male['A'],
+          trigger: 'at',
+        ),
+        'icon': Icons.pets,
+      },
+      {
+        'label': 'Ky Carrier',
+        'value': _traitPercent(
+          female['K'],
+          male['K'],
+          trigger: 'ky',
+        ),
+        'icon': Icons.circle,
+      },
+      {
+        'label': 'Parti Carrier',
+        'value': _traitPercent(
+          female['S'],
+          male['S'],
+          trigger: 's',
+        ),
+        'icon': Icons.circle,
+      },
+      {
+        'label': 'Chocolate Carrier',
+        'value': _traitPercent(
+          female['B'],
+          male['B'],
+          trigger: 'b',
+        ),
+        'icon': Icons.circle,
+      },
+      {
+        'label': 'Dilute Carrier',
+        'value': _traitPercent(
+          female['D'],
+          male['D'],
+          trigger: 'd',
+        ),
+        'icon': Icons.circle,
+      },
+      {
+        'label': 'Merle Carrier',
+        'value': _traitPercent(
+          female['M'],
+          male['M'],
+          trigger: 'M',
+        ),
+        'icon': Icons.circle,
+      },
+    ];
 
-    final results =
-        GeneticsService.buildPhenotypes(
-          genotypeMap,
-        );
+    traits.sort(
+      (a, b) => (b['value'] as double)
+          .compareTo(a['value'] as double),
+    );
 
     return Card(
       child: Padding(
-        padding: const EdgeInsets.all(12),
+        padding: const EdgeInsets.all(16),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             const Text(
-              "🎨 Expected Colours",
-              style: TextStyle(fontWeight: FontWeight.bold),
+              "🧬 Traits (List with Progress)",
+              style: TextStyle(
+                fontWeight: FontWeight.bold,
+                fontSize: 16,
+              ),
             ),
-            const SizedBox(height: 8),
-            ...results.entries.map((e) => Text(
-                  "${e.key}: ${e.value}%",
-                )),
+
+            const SizedBox(height: 16),
+
+            ...traits.map((trait) {
+              return Padding(
+                padding: const EdgeInsets.only(bottom: 14),
+                child: _traitRow(
+                  label: trait['label'],
+                  value: trait['value'],
+                  icon: trait['icon'],
+                ),
+              );
+            }).toList(),
           ],
         ),
       ),
     );
   }
+//====
+  double _traitPercent(
+    String? female,
+    String? male, {
+    required String trigger,
+  }) {
+    if (female == null || male == null) return 0;
+
+    int score = 0;
+
+    if (female.contains(trigger)) score += 50;
+    if (male.contains(trigger)) score += 50;
+
+    return score.toDouble();
+  }
+//-------
+  Widget _traitRow({
+    required String label,
+    required double value,
+    required IconData icon,
+  }) {
+    return Row(
+      children: [
+        Icon(
+          icon,
+          size: 22,
+          color: Colors.grey.shade700,
+        ),
+
+        const SizedBox(width: 12),
+
+        Expanded(
+          flex: 3,
+          child: Text(
+            label,
+            style: const TextStyle(
+              fontSize: 14,
+              fontWeight: FontWeight.w500,
+            ),
+          ),
+        ),
+
+        Expanded(
+          flex: 5,
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(10),
+            child: LinearProgressIndicator(
+              value: value / 100,
+              minHeight: 10,
+              backgroundColor: Colors.grey.shade200,
+            ),
+          ),
+        ),
+
+        const SizedBox(width: 12),
+
+        SizedBox(
+          width: 45,
+          child: Text(
+            "${value.toInt()}%",
+            textAlign: TextAlign.right,
+            style: const TextStyle(
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+//-----------
+  Widget _buildColourWheel(
+    Map<String, String> female,
+    Map<String, String> male,
+    String puppyGrade,
+    String coatType,
+  ) {
+    final genotypeMap = GeneticsService.buildGenotypeMap(
+      female,
+      male,
+    );
+
+    final results = GeneticsService.buildPhenotypes(
+      genotypeMap,
+    );
+
+    final entries = results.entries.toList()
+      ..sort((a, b) => b.value.compareTo(a.value));
+
+    Color sectionColor(String name) {
+    final lower = name.toLowerCase();
+
+    if (lower.contains('caramel')) {
+      return const Color(0xFFD8A15B);
+    }
+
+    if (lower.contains('chocolate')) {
+      return const Color(0xFF6B442D);
+    }
+
+    if (lower.contains('phantom')) {
+      return const Color(0xFF9C6B3F);
+    }
+
+    if (lower.contains('cream')) {
+      return const Color(0xFFF2E2C4);
+    }
+
+    if (lower.contains('black')) {
+      return Colors.black87;
+    }
+
+    if (lower.contains('apricot')) {
+      return const Color(0xFFE7B56A);
+    }
+
+    return Colors.grey;
+  }
+
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              "🎨 Expected Coat Colour Outcomes",
+              style: TextStyle(
+                fontWeight: FontWeight.bold,
+                fontSize: 16,
+              ),
+            ),
+
+            const SizedBox(height: 16),
+
+            SizedBox(
+              child: Column(
+                children: [
+                  SizedBox(
+                    height: 320,
+                    child: Stack(
+                      alignment: Alignment.center,
+                      children: [
+                        PieChart(
+                          PieChartData(
+                            centerSpaceRadius: 48,
+                            sectionsSpace: 3,
+                            sections: entries.map((e) {
+                              final value = e.value.toDouble();
+
+                              return PieChartSectionData(
+                                value: value,
+                                color: sectionColor(e.key),
+                                title: "${value.toInt()}%",
+                                radius: 58,
+                                titleStyle: TextStyle(
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.bold,
+                                  color: e.key.toLowerCase().contains('caramel')
+                                      ? Colors.black
+                                      : Colors.white,
+                                ),
+                              );
+                            }).toList(),
+                          ),
+                        ),
+
+                        Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Text(
+                              puppyGrade,
+                              style: const TextStyle(
+                                fontSize: 24,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                            Text(
+                              coatType,
+                              style: const TextStyle(
+                                fontSize: 15,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+
+                  const SizedBox(height: 20),
+
+                  // legend moved BELOW wheel
+                  Column(
+                    children: [
+                      Column(
+                        children: entries.map((e) {
+                          return Padding(
+                            padding: const EdgeInsets.only(bottom: 10),
+                            child: _legendRow(
+                              e.key,
+                              "${e.value.toInt()}%",
+                              sectionColor(e.key),
+                            ),
+                          );
+                        }).toList(),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+    ///
+    Widget _legendRow(
+    String title,
+    String value,
+    Color color,
+  ) {
+    return Row(
+      children: [
+        Container(
+          width: 16,
+          height: 16,
+          decoration: BoxDecoration(
+            color: color,
+            shape: BoxShape.circle,
+          ),
+        ),
+
+        const SizedBox(width: 12),
+
+        Expanded(
+          child: Text(
+            title,
+            style: const TextStyle(
+              fontSize: 15,
+              fontWeight: FontWeight.w500,
+            ),
+          ),
+        ),
+
+        Text(
+          value,
+          style: const TextStyle(
+            fontSize: 15,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+      ],
+    );
+}
+///
 ///
   bool hasTanPoints(String? a) {
     if (a == null) return false;
@@ -1181,7 +1510,6 @@ class _BreedingPlanCardState extends State<BreedingPlanCard> {
 
         return Column(
           children: [
-            _buildColourPrediction(fDNA, mDNA),
           ],
         );
       },
@@ -1304,6 +1632,18 @@ class _BreedingPlanCardState extends State<BreedingPlanCard> {
           ),
         ),
 
+        _row(
+          "Gen",
+          Text(female['ala_grade']?.toString() ?? '-'),
+          Text(male['ala_grade']?.toString() ?? '-'),
+        ),
+
+        _row(
+          "Coat",
+          Text(female['coat_type']?.toString() ?? '-'),
+          Text(male['coat_type']?.toString() ?? '-'),
+        ),
+
         FutureBuilder(
           future: Future.wait([
             _getDNA(female['id']),
@@ -1351,6 +1691,21 @@ class _BreedingPlanCardState extends State<BreedingPlanCard> {
             return Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
+                _buildColourWheel(
+                  fDNA,
+                  mDNA,
+                  puppyGrade,
+                  female['coat_type'] ?? 'Fleece',
+                ),
+
+                const SizedBox(height: 16),
+
+                _buildTraitProgressCard(
+                  fDNA,
+                  mDNA,
+                ),
+
+                const SizedBox(height: 16),
                 _row(
                   "Nose",
                   noseBadge(fNose),
@@ -1383,6 +1738,17 @@ class _BreedingPlanCardState extends State<BreedingPlanCard> {
                   Text(mDNA['K'] ?? '-'),
                 ),
 
+                _row(
+                  "M Locus",
+                  Text(fDNA['M'] ?? '-'),
+                  Text(mDNA['M'] ?? '-'),
+                ),
+
+                _row(
+                  "S Locus",
+                  Text(fDNA['S'] ?? '-'),
+                  Text(mDNA['S'] ?? '-'),
+                ),
                 const SizedBox(height: 12),
 
                 Center(
@@ -1396,6 +1762,16 @@ class _BreedingPlanCardState extends State<BreedingPlanCard> {
                 ),
 
                 const SizedBox(height: 10),
+
+                BreedingSummarySection(
+                  femaleDNA: fDNA,
+                  maleDNA: mDNA,
+                  sharedAncestors: const [],
+                  femaleName: female['dog_name'] ?? '',
+                  maleName: male['dog_name'] ?? '',
+                ),
+
+                const SizedBox(height: 12),
 
                 if (warnings.isNotEmpty)
                   Container(
@@ -1459,18 +1835,8 @@ class _BreedingPlanCardState extends State<BreedingPlanCard> {
             );
           },
         ),
-
-        _row(
-          "Gen",
-          Text(female['ala_grade']?.toString() ?? '-'),
-          Text(male['ala_grade']?.toString() ?? '-'),
-        ),
-
-        _row(
-          "Coat",
-          Text(female['coat_type']?.toString() ?? '-'),
-          Text(male['coat_type']?.toString() ?? '-'),
-        ),
+        
+        
       ],
     );
   }
@@ -1551,6 +1917,18 @@ class _BreedingPlanCardState extends State<BreedingPlanCard> {
       }
     }
 
+    // =====================================
+    // Default assumed values if not supplied
+    // =====================================
+
+    if (!map.containsKey('S')) {
+      map['S'] = '(S/S) Assumed';
+    }
+
+    if (!map.containsKey('M')) {
+      map['M'] = '(m/m) Assumed';
+    }
+
     return map;
   }
 
@@ -1621,85 +1999,6 @@ class _BreedingPlanCardState extends State<BreedingPlanCard> {
 
     return results;
   }
-
-  // 👇 THEN your existing function
-  Map<String, int> _predictColoursFromMap(
-    Map<String, String> f,
-    Map<String, String> m,
-  ) {
-    // ✅ INSIDE THE CURLY BRACKETS
-
-    print("🧬 FEMALE DNA: $f");
-    print("🧬 MALE DNA: $m");
-    print("🧪 E CHECK: ${f['E']} | ${m['E']}");
-
-    String clean(String? v) =>
-      (v ?? '').toLowerCase().replaceAll(' ', '').replaceAll('\n', '');
-
-  final fE = clean(f['E']);
-  final mE = clean(m['E']);
-  final fB = clean(f['B']);
-  final mB = clean(m['B']);
-  final fA = clean(f['A']);
-  final mA = clean(m['A']);
-
-  // 🧬 LEVEL 2 — REAL A LOCUS CALCULATION
-  final aResults = _punnettSquare(fA, mA);
-
-  double phantomChance = 0;
-
-  aResults.forEach((genotype, prob) {
-    if (genotype == 'at/at') {
-            phantomChance += prob;
-    }
-  });
-
-  print("🧬 A LOCUS RESULTS: $aResults");
-  print("🧬 PHANTOM CHANCE: $phantomChance");
-
-  // ✅ DEFINE RESULTS FIRST
-  final results = <String, int>{};
-
-  // ✅ NOW SAFE TO USE
-  final bothEE = (fE == 'e/e' && mE == 'e/e');
-  final chocolate = (fB == 'b/b' && mB == 'b/b');
-  final phantomAllowed =
-    phantomPossible(fA, mA, f['K'], m['K']);
-  ///
-  ///
-    if (bothEE) {
-    // all pups express recessive red base
-    results['Caramel'] = 100;
-
-    // chocolate modifies shade, not replaces caramel
-    if (chocolate) {
-      results['Chocolate-based Caramel'] = 100;
-    }
-
-    // phantom is a pattern overlay, not separate base colour
-    if (phantomAllowed && phantomChance > 0) {
-      results['Phantom Pattern'] =
-          (phantomChance * 100).round();
-    }
-  } else {
-    // non-ee litters
-
-    if (chocolate) {
-      results['Chocolate'] = 100;
-    } else {
-      results['Black'] = 100;
-    }
-
-    if (phantomAllowed && phantomChance > 0) {
-      results['Phantom Pattern'] =
-          (phantomChance * 100).round();
-    }
-  }
-
-  results.removeWhere((key, value) => value <= 0);
-
-    return results;
-    }
   //''
   Map<String, String> _parseOrivet(String text) {
     final result = <String, String>{};
@@ -1716,7 +2015,14 @@ class _BreedingPlanCardState extends State<BreedingPlanCard> {
     result['E'] = extract("E Locus", r'([Ee]/[Ee])') ?? '';
     result['B'] = extract("Brown", r'([Bb]/[Bb])') ?? '';
     result['D'] = extract("D Locus", r'([Dd]/[Dd])') ?? '';
-    result['K'] = extract("K Locus", r'(KB/ky|ky/ky|KB/KB)') ?? '';
+    if (text.toLowerCase().contains('kb/ky') ||
+    text.toLowerCase().contains('kb / ky')) {
+      result['K'] = 'kb/ky';
+    } else if (text.toLowerCase().contains('ky/ky')) {
+      result['K'] = 'ky/ky';
+    } else if (text.toLowerCase().contains('kb/kb')) {
+      result['K'] = 'kb/kb';
+    }
     result['A'] = extract("A Locus", r'(ay/at|at/a|ay/a|a/a)') ?? '';
 
     result['S'] = extract("Pied", r'(S/S|S/s|s/s)') ?? '';

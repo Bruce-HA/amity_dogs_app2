@@ -5,12 +5,13 @@ import '../tabs/dog_breeding_tab.dart';
 import '../tabs/dog_photos_tab.dart';
 import '../tabs/dog_files_tab.dart';
 import '../tabs/dog_notes_tab.dart';
-import '../tabs/dna_tab.dart';
+import '../tabs/genetics_tab.dart';
 import 'dog_edit_page.dart';
 import 'people_detail_page.dart';
 import 'widgets/dog_card.dart';
 import '../ui/spay_due_label.dart';
 import '../../dev/dev_info_panel.dart';
+import 'dna/dna_input_page.dart';
 
 
 class DogDetailsPage extends StatefulWidget {
@@ -52,12 +53,13 @@ class _DogDetailsPageState extends State<DogDetailsPage> {
     final tabs = [
       'Overview',
       'Photos',
+      'Genetics', // ⭐ NEW
       'Notes',
       'Files',
     ];
 
     if (status != 'Pet') {
-      tabs.insert(2, 'Breeding');
+      tabs.insert(3, 'Breeding');
     }
 
     return tabs;
@@ -146,7 +148,69 @@ class _DogDetailsPageState extends State<DogDetailsPage> {
 
     await loadLitters();
   }
+///
+  Widget _buildDnaStatusBadge() {
+    final hasDna = dog?['has_dna_summary'] == true;
 
+    return InkWell(
+      borderRadius: BorderRadius.circular(20),
+      onTap: () async {
+        final updated = await Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (_) => DnaInputPage(
+              dogId: widget.dogId,
+              dogName: dog?['dog_name'],
+            ),
+          ),
+        );
+
+        if (updated == true) {
+          await loadDog();
+        }
+      },
+      child: Container(
+        padding: const EdgeInsets.symmetric(
+          horizontal: 12,
+          vertical: 8,
+        ),
+        decoration: BoxDecoration(
+          color: hasDna
+              ? Colors.green.shade100
+              : Colors.red.shade100,
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(
+            color: hasDna
+                ? Colors.green.shade300
+                : Colors.red.shade300,
+          ),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              Icons.biotech,
+              size: 18,
+              color: hasDna
+                  ? Colors.green.shade700
+                  : Colors.red.shade700,
+            ),
+            const SizedBox(width: 6),
+            Text(
+              hasDna ? 'DNA Uploaded' : 'DNA Missing',
+              style: TextStyle(
+                fontWeight: FontWeight.w600,
+                color: hasDna
+                    ? Colors.green.shade800
+                    : Colors.red.shade800,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+///
   Future<void> loadLitters() async {
     final dogAla = dog?['dog_ala'];
     if (dogAla == null) return;
@@ -208,8 +272,8 @@ class _DogDetailsPageState extends State<DogDetailsPage> {
       }
 
     return SizedBox(
-      height: 260,
-      width: double.infinity,
+      height: 160,
+      width: 300,
       child: ClipRRect(
         borderRadius: BorderRadius.circular(0),
         child: Image.network(
@@ -265,7 +329,10 @@ class _DogDetailsPageState extends State<DogDetailsPage> {
           ),
           Text(d['dog_ala'] ?? ''),
           Text("Status: ${d['status'] ?? ''}"),
-          if (age.isNotEmpty) Text("Age: $age"),
+          
+          const SizedBox(height: 8),
+
+            _buildDnaStatusBadge(),
 
           const SizedBox(height: 8),
 
@@ -466,6 +533,11 @@ class _DogDetailsPageState extends State<DogDetailsPage> {
           },
         );
 
+      case 'Genetics':
+        return GeneticsTab(
+          dogId: widget.dogId,
+        );
+
       case 'Breeding':
         return DogBreedingTab(dogId: widget.dogId);
 
@@ -491,7 +563,7 @@ class _DogDetailsPageState extends State<DogDetailsPage> {
           return Icons.photo;
         case 'Breeding':
           return Icons.pets;
-        case 'DNA':
+        case 'Genetics':
           return Icons.biotech;
         case 'Notes':
           return Icons.note;

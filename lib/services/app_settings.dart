@@ -1,3 +1,3 @@
 class AppSettings {
-  static bool showPageHints = true;
+  static bool showPageHints = false;
 }
