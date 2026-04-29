@@ -9,7 +9,12 @@ import '../../mating/mating_page.dart';
 import '../../../utils/display_helpers.dart';
 import '../../../services/genetics_service.dart';
 import '../../breeding/breeding_summary.dart';
+import '../../../services/breeding_report.dart';
 import 'package:fl_chart/fl_chart.dart';
+import '../../../services/breeding_report_v2.dart';
+import '../../flow/start_flow_page.dart';
+import '../../flow/flow_detail_page.dart';
+import '../../dna/breeding_pair_dna_page.dart';
 
 
 class BreedingPlanCard extends StatefulWidget {
@@ -33,6 +38,42 @@ class BreedingPlanCard extends StatefulWidget {
 class _BreedingPlanCardState extends State<BreedingPlanCard> {
   
   bool _expanded = false;
+  Map<String, dynamic>? activeFlow;
+  bool checkingActiveFlow = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadActiveFlow();
+  }
+
+  Future<void> _loadActiveFlow() async {
+    try {
+      final data = await Supabase.instance.client
+          .from('breeding_flows')
+          .select('id, breeding_plan_id, current_stage, status, archived')
+          .eq('breeding_plan_id', widget.plan['id'])
+          .eq('archived', false)
+          .not('status', 'in', '(completed,archived,cancelled,whelped)')
+          .order('created_at', ascending: false)
+          .limit(1)
+          .maybeSingle();
+
+      if (!mounted) return;
+
+      setState(() {
+        activeFlow = data;
+        checkingActiveFlow = false;
+      });
+    } catch (e) {
+      if (!mounted) return;
+
+      setState(() {
+        activeFlow = null;
+        checkingActiveFlow = false;
+      });
+    }
+  }
   // wrap to dog details page 
   Widget _clickableDogImage({
     required String dogAla,
@@ -150,181 +191,9 @@ class _BreedingPlanCardState extends State<BreedingPlanCard> {
     return 'Review Required';
   }
 //====================
-  Widget _buildTraitProgressCard(
-    Map<String, String> female,
-    Map<String, String> male,
-  ) {
-    final traits = <Map<String, dynamic>>[
-      {
-        'label': 'Phantom Capable',
-        'value': _traitPercent(
-          female['A'],
-          male['A'],
-          trigger: 'at',
-        ),
-        'icon': Icons.pets,
-      },
-      {
-        'label': 'Tan Points',
-        'value': _traitPercent(
-          female['A'],
-          male['A'],
-          trigger: 'at',
-        ),
-        'icon': Icons.pets,
-      },
-      {
-        'label': 'Ky Carrier',
-        'value': _traitPercent(
-          female['K'],
-          male['K'],
-          trigger: 'ky',
-        ),
-        'icon': Icons.circle,
-      },
-      {
-        'label': 'Parti Carrier',
-        'value': _traitPercent(
-          female['S'],
-          male['S'],
-          trigger: 's',
-        ),
-        'icon': Icons.circle,
-      },
-      {
-        'label': 'Chocolate Carrier',
-        'value': _traitPercent(
-          female['B'],
-          male['B'],
-          trigger: 'b',
-        ),
-        'icon': Icons.circle,
-      },
-      {
-        'label': 'Dilute Carrier',
-        'value': _traitPercent(
-          female['D'],
-          male['D'],
-          trigger: 'd',
-        ),
-        'icon': Icons.circle,
-      },
-      {
-        'label': 'Merle Carrier',
-        'value': _traitPercent(
-          female['M'],
-          male['M'],
-          trigger: 'M',
-        ),
-        'icon': Icons.circle,
-      },
-    ];
-
-    traits.sort(
-      (a, b) => (b['value'] as double)
-          .compareTo(a['value'] as double),
-    );
-
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Text(
-              "🧬 Traits (List with Progress)",
-              style: TextStyle(
-                fontWeight: FontWeight.bold,
-                fontSize: 16,
-              ),
-            ),
-
-            const SizedBox(height: 16),
-
-            ...traits.map((trait) {
-              return Padding(
-                padding: const EdgeInsets.only(bottom: 14),
-                child: _traitRow(
-                  label: trait['label'],
-                  value: trait['value'],
-                  icon: trait['icon'],
-                ),
-              );
-            }).toList(),
-          ],
-        ),
-      ),
-    );
-  }
+ 
 //====
-  double _traitPercent(
-    String? female,
-    String? male, {
-    required String trigger,
-  }) {
-    if (female == null || male == null) return 0;
 
-    int score = 0;
-
-    if (female.contains(trigger)) score += 50;
-    if (male.contains(trigger)) score += 50;
-
-    return score.toDouble();
-  }
-//-------
-  Widget _traitRow({
-    required String label,
-    required double value,
-    required IconData icon,
-  }) {
-    return Row(
-      children: [
-        Icon(
-          icon,
-          size: 22,
-          color: Colors.grey.shade700,
-        ),
-
-        const SizedBox(width: 12),
-
-        Expanded(
-          flex: 3,
-          child: Text(
-            label,
-            style: const TextStyle(
-              fontSize: 14,
-              fontWeight: FontWeight.w500,
-            ),
-          ),
-        ),
-
-        Expanded(
-          flex: 5,
-          child: ClipRRect(
-            borderRadius: BorderRadius.circular(10),
-            child: LinearProgressIndicator(
-              value: value / 100,
-              minHeight: 10,
-              backgroundColor: Colors.grey.shade200,
-            ),
-          ),
-        ),
-
-        const SizedBox(width: 12),
-
-        SizedBox(
-          width: 45,
-          child: Text(
-            "${value.toInt()}%",
-            textAlign: TextAlign.right,
-            style: const TextStyle(
-              fontWeight: FontWeight.bold,
-            ),
-          ),
-        ),
-      ],
-    );
-  }
 //-----------
   Widget _buildColourWheel(
     Map<String, String> female,
@@ -790,14 +659,21 @@ class _BreedingPlanCardState extends State<BreedingPlanCard> {
     final male = widget.male;
     final plan = widget.plan;
 
+    final activeFlow = widget.plan['active_flow'];
+    final isActiveFlow = activeFlow != null;
+
     return InkWell(
       onTap: () => setState(() => _expanded = !_expanded),
       child: Card(
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(16),
-          side: BorderSide(color: Colors.grey.shade200),
+      color: isActiveFlow ? const Color(0xFFFFF8EA) : null,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(16),
+        side: BorderSide(
+          color: isActiveFlow ? const Color(0xFFD4AF37) : Colors.grey.shade200,
+          width: isActiveFlow ? 2 : 1,
         ),
-        elevation: 6,
+      ),
+      elevation: isActiveFlow ? 8 : 6,
         shadowColor: Colors.black.withOpacity(0.1),
         margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
         child: AnimatedContainer(
@@ -806,10 +682,15 @@ class _BreedingPlanCardState extends State<BreedingPlanCard> {
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(16),
             gradient: LinearGradient(
-              colors: [
-                Colors.white,
-                Colors.grey.shade50,
-              ],
+            colors: isActiveFlow
+                ? [
+                    const Color(0xFFFFF8EA),
+                    const Color(0xFFFFEBC2),
+                  ]
+                : [
+                    Colors.white,
+                    Colors.grey.shade50,
+                  ],
               begin: Alignment.topLeft,
               end: Alignment.bottomRight,
             ),
@@ -817,6 +698,35 @@ class _BreedingPlanCardState extends State<BreedingPlanCard> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
+              if (isActiveFlow) ...[
+                Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFD4AF37),
+                        borderRadius: BorderRadius.circular(20),
+                      ),
+                      child: const Text(
+                        'ACTIVE FLOW',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontWeight: FontWeight.bold,
+                          fontSize: 12,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        'Stage: ${activeFlow?['current_stage'] ?? 'Active'}',
+                        style: const TextStyle(fontWeight: FontWeight.bold),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 12),
+              ],
               // 🧬 CODE
               Center(
                 child: Container(
@@ -852,10 +762,10 @@ class _BreedingPlanCardState extends State<BreedingPlanCard> {
                     children: [
                       const SizedBox(height: 12),
                       const SizedBox(), // placeholder (metrics moved)
-                      const SizedBox(height: 12),
-                      _buildDNAIndicators(female, male),
-                      const SizedBox(height: 12),
-                      _buildDNASummary(female, male),
+                //      const SizedBox(height: 12),
+                //      _buildDNAIndicators(female, male),
+                //      const SizedBox(height: 12),
+                //      _buildDNASummary(female, male),
                       const SizedBox(height: 12),
                         FutureBuilder<double?>(
                           future: _calculateMatchScore(
@@ -978,7 +888,12 @@ class _BreedingPlanCardState extends State<BreedingPlanCard> {
                       const SizedBox(height: 12),
                       _buildComparison(female, male),
                       const SizedBox(height: 12),
-                      _buildActions(plan),
+                      _buildActions(
+                        female,
+                        male,
+                        plan,
+                      ),
+                      
                     ],
                   ),
                 ),
@@ -1067,89 +982,49 @@ class _BreedingPlanCardState extends State<BreedingPlanCard> {
     return result;
   }
 //
-  Widget _buildActions(Map<String, dynamic> plan) {
+  Widget _buildActions(
+    Map<String, dynamic> female,
+    Map<String, dynamic> male,
+    Map<String, dynamic> plan,
+  )
+ {
     return Column(
       children: [
         Row(
           children: [
             Expanded(
               child: _actionButton(
-                icon: Icons.favorite,
-                label: "Start",
-                color: Colors.pink,
+                icon: activeFlow != null ? Icons.timeline : Icons.favorite,
+                label: activeFlow != null ? "Flow" : "Start",
+                color: activeFlow != null ? const Color(0xFFD4AF37) : Colors.pink,
                 onTap: () async {
-                final supabase = Supabase.instance.client;
+                  if (activeFlow != null) {
+                    await Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => FlowDetailPage(
+                          flowId: activeFlow!['id'],
+                        ),
+                      ),
+                    );
 
-                try {
-                  final femaleAla = plan['female_dog_ala'];
-                  final maleAla   = plan['male_dog_ala'];
-
-                  final femaleId = widget.female['id'];
-                  final maleId   = widget.male['id'];
-
-                  // 🔢 GET EXISTING MATINGS FOR THIS FEMALE
-                  final existingMatings = await supabase
-                      .from('matings')
-                      .select('mating_code')
-                      .eq('female_dog_ala', femaleAla);
-
-                  int maxNumber = 0;
-
-                  for (var m in existingMatings) {
-                    final code = m['mating_code'] as String?;
-
-                    if (code == null) continue;
-
-                    final match = RegExp(r'M(\d+)$').firstMatch(code);
-
-                    if (match != null) {
-                      final num = int.tryParse(match.group(1)!);
-                      if (num != null && num > maxNumber) {
-                        maxNumber = num;
-                      }
-                    }
+                    await _loadActiveFlow();
+                    return;
                   }
 
-                  final nextNumber = maxNumber + 1;
-
-                  final matingCode =
-                      "$femaleAla-M${nextNumber.toString().padLeft(2, '0')}";
-
-                  // 🧱 INSERT MATING
-                  final response = await supabase
-                      .from('matings')
-                      .insert({
-                        'breeding_plan_id': plan['id'],
-                        'female_dog_id': femaleId,
-                        'male_dog_id': maleId,
-                        'female_dog_ala': femaleAla,
-                        'male_dog_ala': maleAla,
-                        'mating_code': matingCode,
-                        'status': 'planned',
-                      })
-                      .select()
-                      .maybeSingle();;
-
-                  final matingId = response?['id'];
-
-                  // ✅ FEEDBACK
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(content: Text("Mating $matingCode created")),
-                  );
-
-                  // 🚀 NAVIGATE
-                  Navigator.push(
+                  await Navigator.push(
                     context,
                     MaterialPageRoute(
-                      builder: (_) => MatingPage(matingId: matingId),
+                      builder: (_) => StartFlowPage(
+                        femaleDog: widget.female,
+                        breedingPlan: plan,
+                        maleDog: widget.male,
+                      ),
                     ),
                   );
-                } catch (e) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(content: Text("Error starting mating: $e")),
-                  );
-                }
-              },
+
+                  await _loadActiveFlow();
+                },
               ),
             ),
             const SizedBox(width: 8),
@@ -1159,7 +1034,16 @@ class _BreedingPlanCardState extends State<BreedingPlanCard> {
                 label: "DNA",
                 color: Colors.purple,
                 onTap: () {
-                  print("DNA report ${plan['breeding_plan_code']}");
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => BreedingPairDnaPage(
+                        female: female,
+                        male: male,
+                        plan: plan,
+                      ),
+                    ),
+                  );
                 },
               ),
             ),
@@ -1176,6 +1060,7 @@ class _BreedingPlanCardState extends State<BreedingPlanCard> {
                 onTap: () {},
               ),
             ),
+
             const SizedBox(width: 8),
 
             Expanded(
@@ -1183,9 +1068,17 @@ class _BreedingPlanCardState extends State<BreedingPlanCard> {
                 icon: Icons.share,
                 label: "Share",
                 color: Colors.green,
-                onTap: () {},
+                onTap: () async {
+                  await BreedingReportServiceV2()
+                      .generateAndShareReport(
+                    femaleDog: female,
+                    maleDog: male,
+                    breedingPlan: plan,
+                  );
+                },
               ),
             ),
+
             const SizedBox(width: 8),
 
             Expanded(
@@ -1700,12 +1593,14 @@ class _BreedingPlanCardState extends State<BreedingPlanCard> {
 
                 const SizedBox(height: 16),
 
+       /*
                 _buildTraitProgressCard(
                   fDNA,
                   mDNA,
                 ),
 
                 const SizedBox(height: 16),
+      */
                 _row(
                   "Nose",
                   noseBadge(fNose),
@@ -1713,7 +1608,7 @@ class _BreedingPlanCardState extends State<BreedingPlanCard> {
                 ),
 
                 const SizedBox(height: 12),
-
+/*
                 _row(
                   "A Locus",
                   Text(fDNA['A'] ?? '-'),
@@ -1750,6 +1645,7 @@ class _BreedingPlanCardState extends State<BreedingPlanCard> {
                   Text(mDNA['S'] ?? '-'),
                 ),
                 const SizedBox(height: 12),
+    */
 
                 Center(
                   child: Text(

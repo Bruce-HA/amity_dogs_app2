@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../widgets/app_title.dart';
 import '../dog_details_page.dart';
+import 'puppy_create_page.dart';
 
 class LitterPuppiesPage extends StatefulWidget {
   final Map litter;
@@ -76,8 +77,27 @@ class _LitterPuppiesPageState extends State<LitterPuppiesPage> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: buildTitle('Puppies', 'LitterPuppiesPage'),
-      ),
+      title: buildTitle('Puppies', 'LitterPuppiesPage'),
+      actions: [
+        IconButton(
+          icon: const Icon(Icons.add),
+          onPressed: () async {
+            final added = await Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (_) => PuppyCreatePage(
+                  litter: Map<String, dynamic>.from(widget.litter),
+                ),
+              ),
+            );
+
+            if (added == true) {
+              loadPuppies();
+            }
+          },
+        ),
+      ],
+    ),
       body: loading
           ? const Center(child: CircularProgressIndicator())
           : puppies.isEmpty

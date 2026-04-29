@@ -118,7 +118,25 @@ flutter:
     - assets/fonts/Roboto-Regular.ttf
     - assets/images/I30.png
     - assets/images/Staria.png
-    - assets/images/app_icon.png
+  
+    - assets/images/colour_key/multi_pattern.webp
+    - assets/images/colour_key/sable.webp
+    - assets/images/colour_key/parti.webp
+    - assets/images/colour_key/parchment.webp
+    - assets/images/colour_key/lavender.webp
+    - assets/images/colour_key/cafe.webp
+    - assets/images/colour_key/blue.webp
+    - assets/images/colour_key/silver.webp
+    - assets/images/colour_key/black.webp
+    - assets/images/colour_key/red.webp
+    - assets/images/colour_key/caramel.webp
+    - assets/images/colour_key/gold.webp
+    - assets/images/colour_key/cream.webp
+    - assets/images/colour_key/chalk.webp
+    - assets/images/colour_key/caramel_apricot_phantom.webp
+    - assets/images/colour_key/caramel_apricot.webp
+    - assets/images/colour_key/chocolate_phantom.webp
+    - assets/images/colour_key/chocolate.webp
 
     
 

@@ -7,6 +7,7 @@ import 'calendar_page.dart';
 import 'vehicle_log_page.dart';
 import 'reports_page.dart';
 import 'dailies/dailies_page.dart';
+import 'flow/flow_dashboard_page.dart';
 
 // Create these pages if not already existing
 import 'admin_page.dart';
@@ -30,6 +31,12 @@ class DashboardPage extends StatelessWidget {
         mainAxisSpacing: 20,
         children: [
           dashboardTile(context, Icons.pets, 'Dogs', const DogsPage()),
+          dashboardTile(
+            context,
+            Icons.timeline,
+            'The Flow',
+            const FlowDashboardPage(),
+          ),
            // 👇 ADD THIS
           dashboardTile(context, Icons.mark_email_unread, 'CRM Inbox', const InboxPage()),
           dashboardTile(context, Icons.people, 'People', const PeoplePage()),

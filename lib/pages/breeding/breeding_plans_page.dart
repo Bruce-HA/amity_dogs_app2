@@ -60,7 +60,7 @@ class BreedingPlansPage extends StatelessWidget {
 
             SizedBox(
               height: 500,
-              child: DnaTab(dogId: dogId),
+              child: GeneticsTab(dogId: dogId),
             ),
           ],
         ),

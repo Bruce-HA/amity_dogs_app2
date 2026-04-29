@@ -178,40 +178,76 @@ class _DogBreedingTabState extends State<DogBreedingTab> {
 
 ///dd
   Future<void> loadPlans() async {
-    final dogResult = await supabase
-        .from('dogs')
-        .select('dog_ala, sex')
-        .eq('id', widget.dogId)
-        .maybeSingle();
+  final dogResult = await supabase
+      .from('dogs')
+      .select('dog_ala, sex')
+      .eq('id', widget.dogId)
+      .maybeSingle();
 
-    if (dogResult == null) {
-      throw Exception("Dog not found for ID: ${widget.dogId}");
-    }
-
-    final dogAla = dogResult['dog_ala'];
-    final sexRaw = dogResult['sex']?.toString().toLowerCase().trim();
-
-    List response = [];
-
-    if (sexRaw == 'female') {
-      response = await supabase
-          .from('breeding_plans')
-          .select()
-          .eq('female_dog_ala', dogAla)
-          .order('created_at', ascending: false);
-    } else {
-      response = await supabase
-          .from('breeding_plans')
-          .select()
-          .eq('male_dog_ala', dogAla)
-          .order('created_at', ascending: false);
-    }
-
-    setState(() {
-      plans = List<Map<String, dynamic>>.from(response);
-      loadingPlans = false;
-    });
+  if (dogResult == null) {
+    throw Exception("Dog not found for ID: ${widget.dogId}");
   }
+
+  final dogAla = dogResult['dog_ala'];
+  final sexRaw = dogResult['sex']?.toString().toLowerCase().trim();
+
+  List response = [];
+
+  if (sexRaw == 'female') {
+    response = await supabase
+        .from('breeding_plans')
+        .select()
+        .eq('female_dog_ala', dogAla)
+        .order('created_at', ascending: false);
+  } else {
+    response = await supabase
+        .from('breeding_plans')
+        .select()
+        .eq('male_dog_ala', dogAla)
+        .order('created_at', ascending: false);
+  }
+
+  final loadedPlans = List<Map<String, dynamic>>.from(response);
+
+  // 🔥 Find active Flow records for these plans
+  final activeFlows = await supabase
+      .from('breeding_flows')
+      .select('id, breeding_plan_id, current_stage, status, archived')
+      .eq('archived', false)
+      .not('status', 'in', '(completed,archived,cancelled,whelped)');
+
+  final activeFlowByPlanId = <String, Map<String, dynamic>>{};
+
+  for (final flow in activeFlows as List) {
+    final planId = flow['breeding_plan_id']?.toString();
+
+    if (planId != null) {
+      activeFlowByPlanId[planId] = Map<String, dynamic>.from(flow);
+    }
+  }
+
+  // 🔥 Attach active flow to the matching plan
+  for (final plan in loadedPlans) {
+    final planId = plan['id']?.toString();
+    plan['active_flow'] = activeFlowByPlanId[planId];
+  }
+
+  // 🔥 Move active Flow plans to the top
+  loadedPlans.sort((a, b) {
+    final aActive = a['active_flow'] != null;
+    final bActive = b['active_flow'] != null;
+
+    if (aActive && !bActive) return -1;
+    if (!aActive && bActive) return 1;
+
+    return 0;
+  });
+
+  setState(() {
+    plans = loadedPlans;
+    loadingPlans = false;
+  });
+}
 /// Shared Fields Male and Female
   Widget _sharedFields(Map plan) {
     final female = plan['female'];

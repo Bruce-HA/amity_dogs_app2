@@ -9,6 +9,7 @@ import '../services/app_user.dart';
 import 'admin/admin_data_tools_page.dart';
 import '../services/app_settings.dart';
 import 'admin/remove_dna_page.dart';
+import 'admin/company_profile_page.dart';
 
 class AdminPage extends StatelessWidget {
   const AdminPage({super.key});
@@ -87,10 +88,28 @@ class AdminPage extends StatelessWidget {
                   ),
                 );
               },
+              
             ),
 
             const SizedBox(height: 24),
 
+            // =========================
+            // Add profile button
+            // =========================
+            _card(
+              icon: Icons.business,
+              iconColor: Colors.deepPurple,
+              title: 'Company Profile',
+              subtitle: 'Business details, logo, registration and branding',
+              onTap: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => const CompanyProfilePage(),
+                  ),
+                );
+              },
+            ),
             // =========================
             // 🧬 DNA TOOLS
             // =========================
