@@ -306,10 +306,11 @@ Future<void> showEditLogModal(
                           await supabase
                               .from('whelping_logs')
                               .update({
-                                'category': category,
-                                'note': noteController.text,
-                                'event_time': selectedTime.toIso8601String(),
-                              })
+                                  'category': category,
+                                  'note': noteController.text,
+                                  'event_time': selectedTime.toIso8601String(),
+                                  'modified_at': DateTime.now().toIso8601String(),
+                                })
                               .eq('id', log['id'])
                               .order('event_time', ascending: false);
 

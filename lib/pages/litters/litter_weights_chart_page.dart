@@ -129,6 +129,7 @@ class LitterWeightsChartPage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final dates = getDates();
+    const averageScaleColor = Colors.blue;
 
     return Scaffold(
       appBar: AppBar(

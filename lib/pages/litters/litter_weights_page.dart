@@ -311,13 +311,13 @@ class _LitterWeightsPageState extends State<LitterWeightsPage> {
                               return Text(
                                 avg > 0 ? '+$avg' : '$avg',
                                 style: TextStyle(
-                                  color: avg < 0
-                                      ? Colors.red
-                                      : avg == 0
-                                          ? Colors.orange
-                                          : Colors.green,
-                                  fontWeight: FontWeight.bold,
-                                ),
+                                color: avg < 0
+                                    ? Colors.red
+                                    : avg == 0
+                                        ? Colors.orange
+                                        : Colors.blue,
+                                fontWeight: FontWeight.bold,
+                              ),
                               );
                             }),
                           ),

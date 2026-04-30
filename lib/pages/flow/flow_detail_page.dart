@@ -4,6 +4,7 @@ import 'package:intl/intl.dart';
 import '../dog_details_page.dart';
 import '../litters/litter_puppies_page.dart';
 import '../litters/litter_weights_page.dart';
+import '../../services/litter_task_service.dart';
 
 class FlowDetailPage extends StatefulWidget {
   final String flowId;
@@ -18,9 +19,35 @@ class FlowDetailPage extends StatefulWidget {
 }
 
 class _FlowDetailPageState extends State<FlowDetailPage> {
+ 
   final supabase = Supabase.instance.client;
 
+  Map<String, dynamic>? currentLitter;
+  Map<String, dynamic>? litterSettings;
+
+
+  bool useDrontal = false;
+  bool useBaycox = false;
+  bool useNailTrimming = false;
+  bool useEns = false;
+  bool usePhotoReminders = false;
+
+  bool savingLitterSettings = false;
+
   bool loading = true;
+
+  final ScrollController _scrollController = ScrollController();
+
+  final Map<String, GlobalKey> sectionKeys = {
+    'Season': GlobalKey(),
+    'Progesterone': GlobalKey(),
+    'Ovulation': GlobalKey(),
+    'Mating': GlobalKey(),
+    'Pre-Whelping': GlobalKey(),
+    'Litter Settings': GlobalKey(),
+    'Whelping': GlobalKey(),
+    'Puppy Care': GlobalKey(),
+  };
   Map<String, dynamic>? flow;
   List<Map<String, dynamic>> tasks = [];
 
@@ -54,6 +81,11 @@ class _FlowDetailPageState extends State<FlowDetailPage> {
       tasks = List<Map<String, dynamic>>.from(taskData);
       loading = false;
     });
+    await getOrCreateLitter();
+
+    if (mounted) {
+      setState(() {});
+    }
   }
 
   Future<void> editTask(Map<String, dynamic> task) async {
@@ -291,8 +323,10 @@ class _FlowDetailPageState extends State<FlowDetailPage> {
         .maybeSingle();
 
     if (existing != null) {
-      return Map<String, dynamic>.from(existing);
-    }
+    currentLitter = Map<String, dynamic>.from(existing);
+    await loadLitterSettings(currentLitter!['id']);
+    return currentLitter;
+  }
 
     final whelpDate = DateTime.now().toIso8601String().split('T').first;
 
@@ -316,7 +350,96 @@ class _FlowDetailPageState extends State<FlowDetailPage> {
         .select()
         .single();
 
+        currentLitter = litter;
+        await loadLitterSettings(litter['id']);       
+
     return Map<String, dynamic>.from(litter);
+
+  }
+
+  Future<void> loadLitterSettings(String litterId) async {
+    final existing = await supabase
+        .from('litter_settings')
+        .select()
+        .eq('litter_id', litterId)
+        .maybeSingle();
+
+    if (!mounted) return;
+
+    if (existing == null) {
+      setState(() {
+        useDrontal = false;
+        useBaycox = false;
+        useNailTrimming = false;
+        useEns = false;
+        usePhotoReminders = false;
+      });
+      return;
+    }
+
+    setState(() {
+      litterSettings = existing;
+      useDrontal = existing['use_drontal'] == true;
+      useBaycox = existing['use_baycox'] == true;
+      useNailTrimming = existing['use_nail_trimming'] == true;
+      useEns = existing['use_ens'] == true;
+      usePhotoReminders = existing['use_photo_reminders'] == true;
+    });
+  }
+
+  Future<void> saveAndGenerateTasks() async {
+    if (currentLitter == null) return;
+
+    final dobRaw = currentLitter!['whelp_date'];
+    final eddRaw = flow?['expected_due_date'];
+
+    if (dobRaw == null || eddRaw == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Missing DOB or EDD')),
+      );
+      return;
+    }
+
+    setState(() => savingLitterSettings = true);
+
+    final settingsData = {
+      'litter_id': currentLitter!['id'],
+      'flow_id': widget.flowId,
+      'use_drontal': useDrontal,
+      'use_baycox': useBaycox,
+      'use_nail_trimming': useNailTrimming,
+      'use_ens': useEns,
+      'use_photo_reminders': usePhotoReminders,
+    };
+
+    try {
+      await supabase.from('litter_settings').upsert(
+        settingsData,
+        onConflict: 'litter_id',
+      );
+
+      await LitterTaskService().generateTasksForLitter(
+        flowId: widget.flowId,
+        litterId: currentLitter!['id'],
+        dob: DateTime.parse(dobRaw),
+        expectedDueDate: DateTime.parse(eddRaw),
+        settings: settingsData,
+      );
+
+      await loadFlow();
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Tasks generated successfully')),
+      );
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Error: $e')),
+      );
+    } finally {
+      if (mounted) {
+        setState(() => savingLitterSettings = false);
+      }
+    }
   }
 
 ////
@@ -344,7 +467,7 @@ class _FlowDetailPageState extends State<FlowDetailPage> {
 
     await loadFlow();
   }
-///  Whelping Pending
+///  PRE-Whelping Pending
   Future<void> createPreWhelpingTasksIfNeeded() async {
     final ovulationRaw = flow?['ovulation_date'];
 
@@ -422,6 +545,108 @@ class _FlowDetailPageState extends State<FlowDetailPage> {
     await supabase.from('flow_tasks').insert(tasksToInsert);
   }
 
+    ////.  LITTER SETTINGS
+    
+    Widget _litterSettingsCard() {
+      if (currentLitter == null) return const SizedBox.shrink();
+
+      final enabledCount = [
+        useDrontal,
+        useBaycox,
+        useNailTrimming,
+        useEns,
+        usePhotoReminders,
+      ].where((v) => v == true).length;
+
+      return Container(
+      key: sectionKeys['Litter Settings'],
+      child: Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+        child: Card(
+          color: Colors.white,
+          elevation: 2,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(18),
+          ),
+          child: ExpansionTile(
+            initiallyExpanded: false,
+            tilePadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+            childrenPadding: const EdgeInsets.fromLTRB(14, 0, 14, 14),
+            title: const Text(
+              'LITTER SETTINGS',
+              style: TextStyle(
+                fontSize: 17,
+                fontWeight: FontWeight.w900,
+              ),
+            ),
+            subtitle: Text(
+              enabledCount == 0
+                  ? 'No optional care tasks selected'
+                  : '$enabledCount optional care item${enabledCount == 1 ? '' : 's'} selected',
+            ),
+            children: [
+              SwitchListTile(
+                title: const Text('Drontal'),
+                subtitle: const Text('Days 14, 28, 42, 56'),
+                value: useDrontal,
+                onChanged: (v) => setState(() => useDrontal = v),
+              ),
+
+              SwitchListTile(
+                title: const Text('Baycox'),
+                subtitle: const Text('Day 1, Day 21, Day 28'),
+                value: useBaycox,
+                onChanged: (v) => setState(() => useBaycox = v),
+              ),
+
+              SwitchListTile(
+                title: const Text('Nail Trimming'),
+                subtitle: const Text('Weekly from Day 7 to Day 56'),
+                value: useNailTrimming,
+                onChanged: (v) => setState(() => useNailTrimming = v),
+              ),
+
+              SwitchListTile(
+                title: const Text('ENS'),
+                subtitle: const Text('Daily from Day 3 to Day 16'),
+                value: useEns,
+                onChanged: (v) => setState(() => useEns = v),
+              ),
+
+              SwitchListTile(
+                title: const Text('Photo Reminders'),
+                subtitle: const Text('Weekly puppy photos'),
+                value: usePhotoReminders,
+                onChanged: (v) => setState(() => usePhotoReminders = v),
+              ),
+
+              const SizedBox(height: 10),
+
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton.icon(
+                  onPressed: savingLitterSettings ? null : saveAndGenerateTasks,
+                  icon: savingLitterSettings
+                      ? const SizedBox(
+                          width: 18,
+                          height: 18,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : const Icon(Icons.auto_awesome),
+                  label: Text(
+                    savingLitterSettings
+                        ? 'Generating Tasks...'
+                        : 'Save + Generate Tasks',
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      )
+      );
+     
+    }
 //// name in AppBar
   String _flowDisplayName() {
     final female =
@@ -558,9 +783,8 @@ class _FlowDetailPageState extends State<FlowDetailPage> {
         .maybeSingle();
 
     if (existing != null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Whelping has already been started')),
-      );
+      currentLitter = Map<String, dynamic>.from(existing);
+      await loadLitterSettings(currentLitter!['id']);
       return;
     }
 
@@ -756,18 +980,202 @@ class _FlowDetailPageState extends State<FlowDetailPage> {
             : RefreshIndicator(
                 onRefresh: loadFlow,
                 child: ListView(
-                  padding: const EdgeInsets.all(16),
+                controller: _scrollController,
+                padding: const EdgeInsets.all(16),
                   children: [
                     _flowHeader(),
-                    const SizedBox(height: 18),
-                    ...groupedTasks().entries.map(
-                          (entry) => _taskGroup(entry.key, entry.value),
-                        ),
+                    const SizedBox(height: 12),
+
+                    _flowTimelineCard(),
+                    const SizedBox(height: 12),
+
+                    if (groupedTasks()['Season'] != null)
+                      _taskGroup('Season', groupedTasks()['Season']!),
+
+                    if (groupedTasks()['Mating'] != null)
+                      _taskGroup('Mating', groupedTasks()['Mating']!),
+
+                    if (groupedTasks()['Pre-Whelping'] != null)
+                      _taskGroup('Pre-Whelping', groupedTasks()['Pre-Whelping']!),
+
+                    _litterSettingsCard(),
+
+                    if (groupedTasks()['Whelping'] != null)
+                      _taskGroup('Whelping', groupedTasks()['Whelping']!),
+
+                    if (groupedTasks()['Puppy Care'] != null)
+                      _taskGroup('Puppy Care', groupedTasks()['Puppy Care']!),
+
+                    ...groupedTasks().entries
+                         .where((entry) => ![
+                              'Season',
+                              'Progesterone',
+                              'Ovulation',
+                              'Mating',
+                              'Pre-Whelping',
+                              'Whelping',
+                              'Puppy Care',
+                            ].contains(entry.key))
+                        .map((entry) => _taskGroup(entry.key, entry.value)),
                   ],
                 ),
               ),
       );
     }
+  
+  void _jumpToSection(String section) {
+    final key = sectionKeys[section];
+
+    if (key?.currentContext == null) return;
+
+    Scrollable.ensureVisible(
+      key!.currentContext!,
+      duration: const Duration(milliseconds: 500),
+      curve: Curves.easeInOut,
+      alignment: 0.08,
+    );
+  }
+
+  Widget _flowTimelineCard() {
+    final stageOrder = [
+      {
+        'label': 'Season',
+        'icon': Icons.water_drop,
+        'group': 'Season',
+      },
+      {
+        'label': 'Progesterone',
+        'icon': Icons.science,
+        'group': 'Progesterone',
+      },
+      {
+        'label': 'Ovulation',
+        'icon': Icons.egg_alt,
+        'group': 'Ovulation',
+      },
+      {
+        'label': 'Mating',
+        'icon': Icons.favorite,
+        'group': 'Mating',
+      },
+      {
+        'label': 'Pre-Whelping',
+        'icon': Icons.event_note,
+        'group': 'Pre-Whelping',
+      },
+      {
+        'label': 'Whelping',
+        'icon': Icons.child_care,
+        'group': 'Whelping',
+      },
+      {
+        'label': 'Puppy Care',
+        'icon': Icons.pets,
+        'group': 'Puppy Care',
+      },
+    ];
+
+    final grouped = groupedTasks();
+
+    int currentIndex = 0;
+
+    for (int i = 0; i < stageOrder.length; i++) {
+      final groupName = stageOrder[i]['group'] as String;
+      final groupTasks = grouped[groupName] ?? [];
+
+      final hasIncomplete = groupTasks.any((t) => t['completed'] != true);
+
+      if (groupTasks.isNotEmpty && hasIncomplete) {
+        currentIndex = i;
+        break;
+      }
+
+      if (i == stageOrder.length - 1) {
+        currentIndex = i;
+      }
+    }
+
+    return Card(
+      margin: const EdgeInsets.only(bottom: 12),
+      elevation: 2,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(18),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 10),
+        child: SingleChildScrollView(
+          scrollDirection: Axis.horizontal,
+          child: Row(
+            children: List.generate(stageOrder.length, (index) {
+              final stage = stageOrder[index];
+              final label = stage['label'] as String;
+              final icon = stage['icon'] as IconData;
+
+              final groupedTasksForStage =
+                  grouped[stage['group'] as String] ?? [];
+
+              final isComplete = groupedTasksForStage.isNotEmpty &&
+                  groupedTasksForStage.every((t) => t['completed'] == true);
+
+              final isCurrent = index == currentIndex;
+              final isFuture = index > currentIndex;
+
+              final color = isComplete
+                  ? Colors.grey
+                  : isCurrent
+                      ? Colors.deepOrange
+                      : Colors.grey.shade300;
+
+              return Row(
+                children: [
+                  InkWell(
+                    borderRadius: BorderRadius.circular(12),
+                    onTap: () {
+                      _jumpToSection(label);
+                    },
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        CircleAvatar(
+                          radius: 18,
+                          backgroundColor: color,
+                          child: Icon(
+                            icon,
+                            size: 18,
+                            color: Colors.white,
+                          ),
+                        ),
+                        const SizedBox(height: 6),
+                        Text(
+                          label,
+                          style: TextStyle(
+                            fontSize: 11,
+                            fontWeight: isCurrent ? FontWeight.bold : FontWeight.normal,
+                            color: isFuture ? Colors.grey : Colors.black,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+
+                  if (index != stageOrder.length - 1)
+                    Container(
+                      width: 32,
+                      height: 2,
+                      margin: const EdgeInsets.symmetric(horizontal: 6),
+                      color: index < currentIndex
+                          ? Colors.grey
+                          : Colors.grey.shade300,
+                    ),
+                ],
+              );
+            }),
+          ),
+        ),
+      ),
+    );
+  }
+
 
   Widget _flowHeader() {
     final female = flow?['female_dog_ala'] ?? '';
@@ -875,12 +1283,12 @@ class _FlowDetailPageState extends State<FlowDetailPage> {
     final completed = task['completed'] == true;
 
     final canSkip = [
-      'progesterone',
-      'progesterone_test',
-      'ultrasound',
-      'pre_delivery_xray',
-      'ala_breeding_notification',
-    ].contains(task['task_type']) &&
+          'progesterone',
+          'progesterone_test',
+          'ultrasound',
+          'pre_delivery_xray',
+          'ala_breeding_notification',
+        ].contains(task['task_type']) &&
         task['not_used'] != true;
 
     return Padding(
@@ -927,22 +1335,6 @@ class _FlowDetailPageState extends State<FlowDetailPage> {
                     icon: const Icon(Icons.add),
                     label: const Text('Add Another'),
                   ),
-//// add pups
-        /*        if (task['task_type'] == 'record_puppies')
-                  TextButton.icon(
-                    onPressed: () => openLitterPage('puppies'),
-                    icon: const Icon(Icons.pets, size: 16),
-                    label: const Text('Puppies'),
-                  ),
-        */
-                if (task['task_type'] == 'daily_weights')
-                  TextButton.icon(
-                    onPressed: () => openLitterPage('weights'),
-                    icon: const Icon(Icons.monitor_weight, size: 16),
-                    label: const Text('Weights'),
-                  ),
-///
-
 
                 const SizedBox(height: 6),
 
@@ -954,7 +1346,7 @@ class _FlowDetailPageState extends State<FlowDetailPage> {
                         icon: const Icon(Icons.block, size: 16),
                         label: const Text('Skip'),
                       ),
-///
+
                     if (task['task_type'] == 'record_puppies')
                       TextButton.icon(
                         onPressed: () => openLitterPage('puppies'),
@@ -968,8 +1360,9 @@ class _FlowDetailPageState extends State<FlowDetailPage> {
                         icon: const Icon(Icons.monitor_weight, size: 16),
                         label: const Text('Weights'),
                       ),
-                    ///
-                    if (!['record_puppies', 'daily_weights'].contains(task['task_type']))
+
+                    if (!['record_puppies', 'daily_weights']
+                        .contains(task['task_type']))
                       IconButton(
                         icon: const Icon(Icons.edit),
                         onPressed: () => editTask(task),
