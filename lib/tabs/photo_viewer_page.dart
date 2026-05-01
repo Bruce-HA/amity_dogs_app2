@@ -29,19 +29,28 @@ class _PhotoViewerPageState extends State<PhotoViewerPage> {
   final supabase = Supabase.instance.client;
 
   Future<void> deletePhoto() async {
-
     final fileName = widget.photo['url'];
 
-    final storagePath =
-        "${widget.dogId}/${widget.dogAla}/photo/$fileName";
+    if (fileName == null || fileName.toString().isEmpty) {
+      return;
+    }
+
+    // Only delete this exact file from storage.
+    // This does NOT delete the dog folder or photos folder.
+    final storagePath = "${widget.dogAla}/photos/$fileName";
 
     await supabase.storage
         .from('dog_files')
         .remove([storagePath]);
 
+    // Keep the dog_photos row for ZooEasy / future sync.
+    // Mark it as missing instead of deleting it.
     await supabase
         .from('dog_photos')
-        .delete()
+        .update({
+          'photo_exists_on_zooeasy': false,
+          'is_hero': false,
+        })
         .eq('id', widget.photo['id']);
 
     if (mounted) {

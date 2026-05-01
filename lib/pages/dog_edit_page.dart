@@ -90,6 +90,7 @@ class _DogEditPageState extends State<DogEditPage> {
   }
 
   Future<void> save() async {
+    print('SAVING SPAY DUE: ${spayDueController.text}');
     await supabase.from('dogs').update({
       'mother_id': dam != null ? dam!['id'] : null,
       'father_id': sire != null ? sire!['id'] : null,
@@ -105,7 +106,6 @@ class _DogEditPageState extends State<DogEditPage> {
           breeder != null ? breeder!['people_id'] : null,
       'owner_person_id':
           owner != null ? owner!['people_id'] : null,
-      'pedigree_number': pedigreeController.text,
       'coat': coatController.text,
       'size': sizeController.text,
       'colour': colourController.text,
@@ -182,10 +182,11 @@ class _DogEditPageState extends State<DogEditPage> {
       lastDate: DateTime(2100),
     );
 
-    if (picked != null) {
-      controller.text =
-          picked.toIso8601String().split('T').first;
-    }
+      if (picked != null) {
+    setState(() {
+      controller.text = picked.toIso8601String().split('T').first;
+    });
+  }
   }
 
   InputDecoration _dec(String label, String? hint) {
@@ -203,6 +204,13 @@ class _DogEditPageState extends State<DogEditPage> {
     microchipController.dispose();
     dobController.dispose();
     spayDueController.dispose();
+
+    pedigreeController.dispose();
+    coatController.dispose();
+    sizeController.dispose();
+    colourController.dispose();
+    ecgController.dispose();
+
     super.dispose();
   }
 
@@ -242,17 +250,6 @@ class _DogEditPageState extends State<DogEditPage> {
               controller: microchipController,
               decoration:
                   _dec("Microchip", widget.dog['microchip']),
-            ),
-
-            const SizedBox(height: 20),
-
-            Text("📋 Identification", style: TextStyle(fontWeight: FontWeight.w600)),
-
-            const SizedBox(height: 10),
-
-            TextField(
-              controller: pedigreeController,
-              decoration: _dec("Pedigree Number", null),
             ),
 
             const SizedBox(height: 20),
@@ -331,8 +328,23 @@ class _DogEditPageState extends State<DogEditPage> {
             TextField(
               controller: spayDueController,
               readOnly: true,
-              decoration:
-                  _dec("Spay Due Date", widget.dog['spay_due']),
+              decoration: InputDecoration(
+                labelText: "Spay Due Date",
+                border: const OutlineInputBorder(),
+
+                // 👇 ADD CLEAR BUTTON
+                suffixIcon: spayDueController.text.isNotEmpty
+                    ? IconButton(
+                        icon: const Icon(Icons.clear),
+                        tooltip: "Clear date",
+                        onPressed: () {
+                          setState(() {
+                            spayDueController.clear(); // 👈 THIS makes it NULL on save
+                          });
+                        },
+                      )
+                    : null,
+              ),
               onTap: () => pickDate(spayDueController),
             ),
 

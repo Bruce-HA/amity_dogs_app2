@@ -5,6 +5,7 @@ import '../dog_details_page.dart';
 import '../litters/litter_puppies_page.dart';
 import '../litters/litter_weights_page.dart';
 import '../../services/litter_task_service.dart';
+import '../../ui/app_page_theme.dart';
 
 class FlowDetailPage extends StatefulWidget {
   final String flowId;
@@ -33,6 +34,7 @@ class _FlowDetailPageState extends State<FlowDetailPage> {
   bool usePhotoReminders = false;
 
   bool savingLitterSettings = false;
+  bool showCompletedTasks = false;
 
   bool loading = true;
 
@@ -51,8 +53,11 @@ class _FlowDetailPageState extends State<FlowDetailPage> {
   Map<String, dynamic>? flow;
   List<Map<String, dynamic>> tasks = [];
 
-  static const Color flowBackground = Color(0xFFFFF8EA);
-  static const Color flowHeader = Color(0xFFF3DFC1);
+  static const flowTheme = AppPageThemes.flow;
+
+  static Color get flowPrimary => flowTheme.primary;
+  static Color get flowPrimaryDark => flowTheme.dark;
+  static Color get flowLight => flowTheme.light;
 
   @override
   void initState() {
@@ -751,12 +756,26 @@ class _FlowDetailPageState extends State<FlowDetailPage> {
   ////. Toggle Complete 
   Future<void> toggleCompleted(Map<String, dynamic> task) async {
     final newValue = task['completed'] != true;
+    final now = DateTime.now().toIso8601String();
 
     await supabase.from('flow_tasks').update({
       'completed': newValue,
-      'completed_at': newValue ? DateTime.now().toIso8601String() : null,
-      'updated_at': DateTime.now().toIso8601String(),
+      'completed_at': newValue ? now : null,
+      'updated_at': now,
     }).eq('id', task['id']);
+
+    setState(() {
+      final index = tasks.indexWhere((t) => t['id'] == task['id']);
+
+      if (index != -1) {
+        tasks[index] = {
+          ...tasks[index],
+          'completed': newValue,
+          'completed_at': newValue ? now : null,
+          'updated_at': now,
+        };
+      }
+    });
 
     if (newValue == true && task['task_type'] == 'mating') {
       await supabase.from('matings').update({
@@ -766,13 +785,11 @@ class _FlowDetailPageState extends State<FlowDetailPage> {
       await supabase.from('breeding_flows').update({
         'current_stage': 'Whelping Pending',
         'status': 'whelping_pending',
-        'updated_at': DateTime.now().toIso8601String(),
+        'updated_at': now,
       }).eq('id', widget.flowId);
 
       await createPreWhelpingTasksIfNeeded();
     }
-
-    await loadFlow();
   }
   ///. add Whelping card
   Future<void> startWhelping() async {
@@ -871,7 +888,14 @@ class _FlowDetailPageState extends State<FlowDetailPage> {
     final grouped = <String, List<Map<String, dynamic>>>{};
 
     for (final task in tasks) {
+      if (task['not_used'] == true) continue;
+
+      if (!showCompletedTasks && task['completed'] == true) {
+        continue;
+      }
+
       final group = task['task_group']?.toString() ?? 'Other';
+
       grouped.putIfAbsent(group, () => []);
       grouped[group]!.add(task);
     }
@@ -882,9 +906,10 @@ class _FlowDetailPageState extends State<FlowDetailPage> {
   @override
     Widget build(BuildContext context) {
       return Scaffold(
-        backgroundColor: flowBackground,
+        backgroundColor: Colors.grey.shade100,
         appBar: AppBar(
-          backgroundColor: flowHeader,
+          backgroundColor: flowPrimary,
+          foregroundColor: Colors.white,
           title: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -988,6 +1013,17 @@ class _FlowDetailPageState extends State<FlowDetailPage> {
 
                     _flowTimelineCard(),
                     const SizedBox(height: 12),
+
+                    SwitchListTile(
+                      title: const Text('Show completed tasks'),
+                      value: showCompletedTasks,
+                      onChanged: (value) {
+                        setState(() {
+                          showCompletedTasks = value;
+                        });
+                      },
+                    ),
+                    const SizedBox(height: 8),
 
                     if (groupedTasks()['Season'] != null)
                       _taskGroup('Season', groupedTasks()['Season']!),
@@ -1186,26 +1222,35 @@ class _FlowDetailPageState extends State<FlowDetailPage> {
     return Container(
       padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
-        color: flowHeader,
-        borderRadius: BorderRadius.circular(22),
-        boxShadow: const [
-          BoxShadow(
-            blurRadius: 8,
-            offset: Offset(0, 3),
-            color: Colors.black12,
-          ),
+      gradient: LinearGradient(
+        colors: [
+          flowPrimary,
+          flowPrimaryDark,
         ],
+        begin: Alignment.topLeft,
+        end: Alignment.bottomRight,
       ),
+      borderRadius: BorderRadius.circular(22),
+      boxShadow: [
+        BoxShadow(
+          blurRadius: 14,
+          offset: const Offset(0, 7),
+          color: flowPrimary.withOpacity(0.25),
+        ),
+      ],
+    ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           const Text(
-            'THE FLOW',
-            style: TextStyle(
-              fontSize: 26,
-              fontWeight: FontWeight.w900,
-            ),
+          'THE FLOW',
+          style: TextStyle(
+            fontSize: 26,
+            fontWeight: FontWeight.w900,
+            color: Colors.white,
+            letterSpacing: 0.5,
           ),
+        ),
           const SizedBox(height: 8),
           Text(
             '$female × $male',
@@ -1215,8 +1260,30 @@ class _FlowDetailPageState extends State<FlowDetailPage> {
             ),
           ),
           const SizedBox(height: 8),
-          Text('Stage: $stage'),
-          Text('Status: $status'),
+          DefaultTextStyle(
+          style: const TextStyle(
+            color: Colors.white,
+            fontSize: 15,
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text('Stage: $stage'),
+              Text('Status: $status'),
+              if (flow?['season_start_date'] != null)
+                Text(
+                  'Season Start: ${formatDisplayDate(flow!['season_start_date'])}',
+                ),
+              Text(
+                estimatedDeliveryDate(),
+                style: const TextStyle(
+                  fontWeight: FontWeight.bold,
+                  color: Colors.white,
+                ),
+              ),
+            ],
+          ),
+        ),
           if (flow?['season_start_date'] != null)
             Text(
               'Season Start: ${formatDisplayDate(flow!['season_start_date'])}',
@@ -1232,10 +1299,17 @@ class _FlowDetailPageState extends State<FlowDetailPage> {
 
           if (flow?['status'] == 'whelping_pending')
             ElevatedButton.icon(
-              onPressed: startWhelping,
-              icon: const Icon(Icons.child_care),
-              label: const Text('Start Whelping'),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.white,
+              foregroundColor: flowPrimary,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
             ),
+            onPressed: startWhelping,
+            icon: const Icon(Icons.child_care),
+            label: const Text('Start Whelping'),
+          ),
           
 
         ],
@@ -1243,37 +1317,230 @@ class _FlowDetailPageState extends State<FlowDetailPage> {
     );
   }
 
+  Map<int, List<Map<String, dynamic>>> groupTasksByWeek(
+    List<Map<String, dynamic>> groupTasks,
+  ) {
+    final grouped = <int, List<Map<String, dynamic>>>{};
+
+    // 🔥 DOB anchor = "Record start of whelping"
+    DateTime? dob;
+
+    final whelpTask = tasks.firstWhere(
+      (t) => t['task_type'] == 'whelping_start' && t['due_date'] != null,
+      orElse: () => {},
+    );
+
+    if (whelpTask.isNotEmpty) {
+      dob = DateTime.tryParse(whelpTask['due_date'].toString());
+    }
+
+    // Fallback to litter whelp_date if needed
+    if (dob == null) {
+      final fallbackDobRaw = currentLitter?['whelp_date'];
+
+      if (fallbackDobRaw != null) {
+        dob = DateTime.tryParse(fallbackDobRaw.toString());
+      }
+    }
+
+    if (dob == null) return {};
+
+    for (final task in groupTasks) {
+      if (task['not_used'] == true) continue;
+      if (!showCompletedTasks && task['completed'] == true) continue;
+
+      final rawDate = task['due_date'];
+      if (rawDate == null) continue;
+
+      final taskDate = DateTime.tryParse(rawDate.toString());
+      if (taskDate == null) continue;
+
+      final days = taskDate.difference(dob).inDays;
+
+      // Breeder week count:
+      // DOB day = Week 0
+      // 7 days old = Week 1
+      // 14 days old = Week 2
+      final week = ((days + 1) ~/ 7);
+
+      grouped.putIfAbsent(week, () => []);
+      grouped[week]!.add(task);
+    }
+
+    final sortedKeys = grouped.keys.toList()..sort();
+
+    return {
+      for (final key in sortedKeys) key: grouped[key]!,
+    };
+  }
+
+
   Widget _taskGroup(String title, List<Map<String, dynamic>> groupTasks) {
     final incompleteCount =
         groupTasks.where((t) => t['completed'] != true).length;
-        final allComplete = incompleteCount == 0;
+    final allComplete = incompleteCount == 0;
 
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 12),
-      child: Card(
-        color: allComplete ? Colors.green.shade50 : Colors.white,
-        elevation: 2,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(18),
-        ),
-        child: ExpansionTile(
-          initiallyExpanded: !allComplete,
-       //    title == 'Season' || title == 'Mating',
-          tilePadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
-          childrenPadding: const EdgeInsets.fromLTRB(14, 0, 14, 10),
-          title: Text(
-            title.toUpperCase(),
-            style: const TextStyle(
-              fontSize: 17,
-              fontWeight: FontWeight.w900,
+    // ==============================
+    // SPECIAL DISPLAY: PUPPY CARE
+    // Group tasks by due date
+    // ==============================
+    if (title == 'Puppy Care') {
+      final groupedByWeek = groupTasksByWeek(groupTasks);
+
+      Map<String, List<Map<String, dynamic>>> groupTasksByDateInsideWeek(
+        List<Map<String, dynamic>> tasksForWeek,
+      ) {
+        final groupedByDate = <String, List<Map<String, dynamic>>>{};
+
+        for (final task in tasksForWeek) {
+          final date = task['due_date']?.toString() ?? 'No date set';
+
+          groupedByDate.putIfAbsent(date, () => []);
+          groupedByDate[date]!.add(task);
+        }
+
+        final sortedKeys = groupedByDate.keys.toList()
+          ..sort((a, b) {
+            if (a == 'No date set') return 1;
+            if (b == 'No date set') return -1;
+            return a.compareTo(b);
+          });
+
+        return {
+          for (final key in sortedKeys) key: groupedByDate[key]!,
+        };
+      }
+
+      return Container(
+        key: sectionKeys[title],
+        child: Padding(
+          padding: const EdgeInsets.only(bottom: 12),
+          child: Card(
+            color: allComplete ? Colors.green.shade50 : Colors.white,
+            elevation: 2,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(18),
+            ),
+            child: ExpansionTile(
+              initiallyExpanded: !allComplete,
+              tilePadding:
+                  const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+              childrenPadding: const EdgeInsets.fromLTRB(14, 0, 14, 10),
+              title: Text(
+                title.toUpperCase(),
+                style: const TextStyle(
+                  fontSize: 17,
+                  fontWeight: FontWeight.w900,
+                ),
+              ),
+              subtitle: Text(
+                incompleteCount == 0
+                    ? 'All complete'
+                    : '$incompleteCount item${incompleteCount == 1 ? '' : 's'} remaining',
+              ),
+             children: groupedByWeek.entries.map((entry) {
+              final week = entry.key;
+              final tasksForWeek = entry.value;
+
+              // 🔹 Sort tasks inside the week by date
+              tasksForWeek.sort((a, b) {
+                final da = DateTime.tryParse(a['due_date'] ?? '') ?? DateTime(1900);
+                final db = DateTime.tryParse(b['due_date'] ?? '') ?? DateTime(1900);
+                return da.compareTo(db);
+              });
+
+              return Padding(
+                padding: const EdgeInsets.only(bottom: 14),
+                child: Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: Colors.grey.shade50,
+                    borderRadius: BorderRadius.circular(14),
+                    border: Border.all(
+                      color: Colors.grey.shade300,
+                    ),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      // 🔹 WEEK HEADER (correct now)
+                      Text(
+                        'Week $week',
+                        style: const TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w900,
+                          color: Colors.deepOrange,
+                        ),
+                      ),
+
+                      const SizedBox(height: 8),
+
+                      ...groupTasksByDateInsideWeek(tasksForWeek).entries.map((dateEntry) {
+                        final date = dateEntry.key;
+                        final tasksForDate = dateEntry.value;
+
+                        return Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            if (date != 'No date set')
+                              Text(
+                                formatDisplayDate(date),
+                                style: const TextStyle(
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+
+                            ...tasksForDate.map(_taskTile),
+
+                            const SizedBox(height: 8),
+                          ],
+                        );
+                      }),
+                    ],
+                  ),
+                ),
+              );
+            }).toList()
             ),
           ),
-          subtitle: Text(
-            incompleteCount == 0
-                ? 'All complete'
-                : '$incompleteCount item${incompleteCount == 1 ? '' : 's'} remaining',
+        ),
+      );
+    }
+
+    // ==============================
+    // NORMAL DISPLAY: ALL OTHER GROUPS
+    // ==============================
+    return Container(
+      key: sectionKeys[title],
+      child: Padding(
+        padding: const EdgeInsets.only(bottom: 12),
+        child: Card(
+          color: allComplete ? Colors.green.shade50 : Colors.white,
+          elevation: 2,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(18),
           ),
-          children: groupTasks.map(_taskTile).toList(),
+          child: ExpansionTile(
+            initiallyExpanded: !allComplete,
+            tilePadding:
+                const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+            childrenPadding: const EdgeInsets.fromLTRB(14, 0, 14, 10),
+            title: Text(
+              title.toUpperCase(),
+              style: const TextStyle(
+                fontSize: 17,
+                fontWeight: FontWeight.w900,
+              ),
+            ),
+            subtitle: Text(
+              incompleteCount == 0
+                  ? 'All complete'
+                  : '$incompleteCount item${incompleteCount == 1 ? '' : 's'} remaining',
+            ),
+            children: groupTasks.map(_taskTile).toList(),
+          ),
         ),
       ),
     );

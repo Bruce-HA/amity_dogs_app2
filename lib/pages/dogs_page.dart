@@ -35,6 +35,7 @@ class _DogsPageState extends State<DogsPage> {
   String? _selectedStatus;
 
   String? _myPeopleId;
+  String? _associationNumber;
 
   List<Map<String, dynamic>> _dogs = [];
 
@@ -47,9 +48,7 @@ class _DogsPageState extends State<DogsPage> {
     'Pending',
     'Guardian',
     'Pet',
-    'Retired',
     'For Sale',
-    'Deceased',
   ];
 
   // ONLY showing CHANGED / FIXED parts to keep this clean
@@ -72,21 +71,36 @@ class _DogsPageState extends State<DogsPage> {
 
   Future<void> _loadCurrentUserPeopleId() async {
     final user = _supabase.auth.currentUser;
-    if (user == null) return;
 
-    final profile = await _supabase
-        .from('profiles')
-        .select('people_id')
-        .eq('user_id', user.id)
-        .single();
+    if (user == null) {
+      setState(() => _initialLoad = false);
+      _fetchDogs(reset: true);
+      return;
+    }
+
+    final appUser = await _supabase
+        .from('app_users')
+        .select('company_profile_id')
+        .eq('id', user.id)
+        .maybeSingle();
+
+    if (appUser?['company_profile_id'] != null) {
+      final company = await _supabase
+          .from('company_profile')
+          .select('association_number')
+          .eq('id', appUser!['company_profile_id'])
+          .maybeSingle();
+
+      _associationNumber = company?['association_number'];
+    }
+
+    debugPrint('ASSOCIATION NUMBER: $_associationNumber');
 
     setState(() {
-      _myPeopleId = profile['people_id'];
-      _initialLoad = false; // ✅ FIX
+      _initialLoad = false;
     });
 
     _fetchDogs(reset: true);
-
   }
 
   void _onSearchChanged(String value) {
@@ -98,7 +112,7 @@ class _DogsPageState extends State<DogsPage> {
 
   Future<void> _fetchDogs({bool reset = false}) async {
     if (_isLoading) return;
-    if (_myPeopleId == null) return;
+  //  if (_myPeopleId == null) return;
 
     setState(() {
       _isLoading = true;
@@ -115,20 +129,22 @@ class _DogsPageState extends State<DogsPage> {
       var query = _supabase
           .from('dogs_list_view_with_hero')
           .select('''
-            id,
-            dog_name,
-            dog_ala,
-            sex,
-            microchip,
-            status,
-            spay_due,
-            my_dogs,
-            dob,
-            hero
-          ''');
+              id,
+              dog_name,
+              dog_ala,
+              sex,
+              microchip,
+              status,
+              spay_due,
+              my_dogs,
+              dob,
+              hero,
+              ala_breeder,
+              sale_status
+            ''');
 
-      if (_myDogsOnly) {
-        query = query.eq('my_dogs', true);
+      if (_myDogsOnly && _associationNumber != null) {
+        query = query.eq('ala_breeder', _associationNumber!);
       }
 
       if (_spayPendingOnly) {
@@ -136,8 +152,12 @@ class _DogsPageState extends State<DogsPage> {
       }
 
       if (_selectedStatus != null) {
+      if (_selectedStatus == 'For Sale') {
+        query = query.eq('sale_status', 'For Sale');
+      } else {
         query = query.eq('status', _selectedStatus!);
       }
+    }
 
       if (search.isNotEmpty) {
         final s = search.replaceAll("'", "''");
@@ -155,7 +175,16 @@ class _DogsPageState extends State<DogsPage> {
           .range(_offset, _offset + _limit - 1);
 
       setState(() {
-        _dogs = List<Map<String, dynamic>>.from(response);
+        final newDogs = List<Map<String, dynamic>>.from(response);
+
+      if (reset) {
+        _dogs = newDogs;
+      } else {
+        _dogs.addAll(newDogs);
+      }
+
+      _offset += _limit;
+      _hasMore = newDogs.length == _limit;
         _isLoading = false;
       });
     } catch (e) {

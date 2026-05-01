@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
-
+import '../../ui/app_page_theme.dart';
 import 'flow_detail_page.dart';
 
 class StartFlowPage extends StatefulWidget {
@@ -27,8 +27,10 @@ class _StartFlowPageState extends State<StartFlowPage> {
 
   bool saving = false;
 
-  static const Color flowBackground = Color(0xFFFFF8EA);
-  static const Color flowHeader = Color(0xFFF3DFC1);
+  static const flowTheme = AppPageThemes.flow;
+
+  static Color get flowPrimary => flowTheme.primary;
+  static Color get flowPrimaryDark => flowTheme.dark;
 
   String get femaleName =>
       widget.femaleDog['dog_name']?.toString() ??
@@ -230,9 +232,10 @@ class _StartFlowPageState extends State<StartFlowPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: flowBackground,
+      backgroundColor: Colors.grey.shade100,
       appBar: AppBar(
-        backgroundColor: flowHeader,
+        backgroundColor: flowPrimary,
+        foregroundColor: Colors.white,
         title: const Text(
           'Start The Flow',
           style: TextStyle(fontWeight: FontWeight.bold),
@@ -268,7 +271,7 @@ class _StartFlowPageState extends State<StartFlowPage> {
                 : const Icon(Icons.favorite),
             label: Text(saving ? 'Starting...' : 'Start The Flow'),
             style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.pink.shade400,
+              backgroundColor: flowPrimary,
               foregroundColor: Colors.white,
               padding: const EdgeInsets.symmetric(vertical: 16),
               textStyle: const TextStyle(
@@ -286,22 +289,63 @@ class _StartFlowPageState extends State<StartFlowPage> {
     return Container(
       padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
-        color: flowHeader,
+        gradient: LinearGradient(
+          colors: [
+            flowPrimary,
+            flowPrimaryDark,
+          ],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
         borderRadius: BorderRadius.circular(22),
+        boxShadow: [
+          BoxShadow(
+            blurRadius: 14,
+            offset: const Offset(0, 7),
+            color: flowPrimary.withOpacity(0.25),
+          ),
+        ],
       ),
-      child: const Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+      child: Row(
         children: [
-          Text(
-            'THE FLOW',
-            style: TextStyle(
-              fontSize: 26,
-              fontWeight: FontWeight.w900,
+          Container(
+            width: 54,
+            height: 54,
+            decoration: BoxDecoration(
+              color: Colors.white.withOpacity(0.22),
+              borderRadius: BorderRadius.circular(18),
+            ),
+            child: const Icon(
+              Icons.route,
+              size: 34,
+              color: Colors.white,
             ),
           ),
-          SizedBox(height: 6),
-          Text(
-            'Start the live breeding workflow from this selected breeding plan.',
+          const SizedBox(width: 14),
+          const Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'THE FLOW',
+                  style: TextStyle(
+                    fontSize: 24,
+                    fontWeight: FontWeight.w900,
+                    color: Colors.white,
+                    letterSpacing: 0.5,
+                  ),
+                ),
+                SizedBox(height: 4),
+                Text(
+                  'Start the live breeding workflow from this selected breeding plan.',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 15,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+              ],
+            ),
           ),
         ],
       ),

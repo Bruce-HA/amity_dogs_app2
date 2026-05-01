@@ -327,14 +327,27 @@ class _DogDetailsPageState extends State<DogDetailsPage> {
               fontWeight: FontWeight.bold,
             ),
           ),
+
           Text(d['dog_ala'] ?? ''),
+
+          // 👇 NEW — Microchip
+          if (d['microchip'] != null && d['microchip'].toString().isNotEmpty)
+            Text(
+              "Microchip: ${d['microchip']}",
+              style: TextStyle(
+                fontSize: 13,
+                color: Colors.grey.shade600,
+              ),
+            ),
+
           Text("Status: ${d['status'] ?? ''}"),
           
-          const SizedBox(height: 8),
-
+          // 👇 Only show DNA badge for breeding dogs
+          if (!isPet) ...[
+            const SizedBox(height: 8),
             _buildDnaStatusBadge(),
-
-          const SizedBox(height: 8),
+            const SizedBox(height: 8),
+          ],
 
           if (d['spay_due'] != null)
             SpayDueLabel(spayDue: d['spay_due']),

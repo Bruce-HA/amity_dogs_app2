@@ -2,6 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:intl/intl.dart';
 import 'flow_detail_page.dart';
+import '../litters/litter_weights_page.dart';
+import '../litters/litter_weights_chart_page.dart';
+import '../litters/litter_puppies_page.dart';
+import '../../ui/app_page_theme.dart';
 
 class FlowDashboardPage extends StatefulWidget {
   const FlowDashboardPage({super.key});
@@ -14,11 +18,17 @@ class _FlowDashboardPageState extends State<FlowDashboardPage> {
   final supabase = Supabase.instance.client;
 
   bool loading = true;
+  bool _weightsPressed = false;
+  bool _graphPressed = false;
   List<Map<String, dynamic>> tasks = [];
   String selectedFlowId = 'all';
 
-  static const Color flowBackground = Color(0xFFFFF8EA);
-  static const Color flowHeader = Color(0xFFF3DFC1);
+  static const flowTheme = AppPageThemes.flow;
+
+  static Color get flowBackground => flowTheme.background;
+  static Color get flowHeader => flowTheme.light;
+  static Color get flowPrimary => flowTheme.primary;
+  static Color get flowPrimaryDark => flowTheme.dark;
 
   @override
   void initState() {
@@ -54,6 +64,7 @@ class _FlowDashboardPageState extends State<FlowDashboardPage> {
           female_dog_ala,
           male_dog_ala,
           status,
+          mating_id,
           current_stage,
           archived
         )
@@ -124,7 +135,7 @@ class _FlowDashboardPageState extends State<FlowDashboardPage> {
 
       if (bucket == 'UPCOMING') return dueOnly.isAfter(weekEnd);
 
-      return false;
+      return false;                                                                                            
     }).toList();
   }
 
@@ -176,9 +187,10 @@ class _FlowDashboardPageState extends State<FlowDashboardPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: flowBackground,
+      backgroundColor: Colors.grey.shade100,
       appBar: AppBar(
-        backgroundColor: flowHeader,
+        backgroundColor: flowPrimary,
+        foregroundColor: Colors.white,
         title: const Text(
           'The Flow',
           style: TextStyle(fontWeight: FontWeight.bold),
@@ -193,14 +205,12 @@ class _FlowDashboardPageState extends State<FlowDashboardPage> {
                 padding: const EdgeInsets.all(16),
                 children: [
                   _headerCard(),
-                  const SizedBox(height: 12),
+                  const SizedBox(height: 16),
+
                   _flowFilter(),
                   const SizedBox(height: 16),
-                  _bucketSection('OVERDUE'),
-                  _bucketSection('TODAY'),
-                  _bucketSection('THIS WEEK'),
-                  _bucketSection('UPCOMING'),
-                  _bucketSection('COMPLETED'),
+
+                  _selectedFlowCard(),
                 ],
               ),
             ),
@@ -251,6 +261,276 @@ class _FlowDashboardPageState extends State<FlowDashboardPage> {
     );
   }
 ///
+  Future<Map<String, dynamic>?> _getLitterForFlow(Map flow) async {
+    final matingId = flow['mating_id'];
+
+    if (matingId == null) return null;
+
+    final litter = await supabase
+        .from('litters')
+        .select()
+        .eq('mating_id', matingId)
+        .maybeSingle();
+
+    if (litter == null) return null;
+
+    return Map<String, dynamic>.from(litter);
+  }
+///
+  Widget flowButton({
+    required IconData icon,
+    required String label,
+    required VoidCallback onPressed,
+    bool filled = true,
+    bool pressed = false,
+  }) {
+    final bg = filled
+        ? (pressed ? flowPrimaryDark : flowPrimary)
+        : Colors.white;
+
+    final fg = filled ? Colors.white : flowPrimary;
+
+    return SizedBox(
+      width: double.infinity,
+      child: AnimatedScale(
+        scale: pressed ? 0.96 : 1.0,
+        duration: const Duration(milliseconds: 120),
+        child: DecoratedBox(
+          decoration: BoxDecoration(
+            boxShadow: [
+              BoxShadow(
+                color: flowPrimary.withOpacity(pressed ? 0.34 : 0.16),
+                blurRadius: pressed ? 18 : 10,
+                offset: const Offset(0, 5),
+              ),
+            ],
+          ),
+          child: ElevatedButton.icon(
+            icon: CircleAvatar(
+              radius: 15,
+              backgroundColor:
+                  filled ? Colors.white.withOpacity(0.18) : flowTheme.light,
+              child: Icon(
+                icon,
+                color: fg,
+                size: 18,
+              ),
+            ),
+            label: Text(label),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: bg,
+              foregroundColor: fg,
+              elevation: 0,
+              side: filled
+                  ? null
+                  : BorderSide(
+                      color: flowPrimary,
+                      width: 1.5,
+                    ),
+              padding: const EdgeInsets.symmetric(vertical: 16),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(16),
+              ),
+              textStyle: const TextStyle(
+                fontSize: 16,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            onPressed: onPressed,
+          ),
+        ),
+      ),
+    );
+  }
+///
+  Widget _selectedFlowCard() {
+    if (selectedFlowId == 'all') {
+      return Card(
+        color: Colors.white,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(22),
+        ),
+        child: const Padding(
+          padding: EdgeInsets.all(18),
+          child: Text(
+            'Choose a flow from the dropdown to open its full timeline.',
+            style: TextStyle(fontSize: 16),
+          ),
+        ),
+      );
+    }
+
+    final flow = activeFlowOptions.firstWhere(
+      (f) => f['id'].toString() == selectedFlowId,
+      orElse: () => <String, dynamic>{},
+    );
+
+    if (flow.isEmpty) {
+      return const SizedBox.shrink();
+    }
+
+    return Card(
+      color: Colors.white,
+      elevation: 2,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(22),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(18),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              _flowDisplayName(flow),
+              style: const TextStyle(
+                fontSize: 24,
+                fontWeight: FontWeight.w900,
+              ),
+            ),
+
+            const SizedBox(height: 10),
+
+            Text(
+              '${flow['female_dog_ala'] ?? ''} × ${flow['male_dog_ala'] ?? ''}',
+              style: const TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+
+            const SizedBox(height: 6),
+
+            Text('Stage: ${flow['current_stage'] ?? ''}'),
+            Text('Status: ${flow['status'] ?? ''}'),
+
+            const SizedBox(height: 16),
+
+            SizedBox(
+              width: double.infinity,
+              child: flowButton(
+              icon: Icons.timeline,
+              label: 'Open Flow Timeline',
+              onPressed: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => FlowDetailPage(flowId: flow['id']),
+                  ),
+                ).then((_) => loadFlowTasks());
+              },
+            ),
+              ///
+            
+              ///
+            ),
+            ///k
+            const SizedBox(height: 10),
+
+            SizedBox(
+              width: double.infinity,
+              child: flowButton(
+              icon: Icons.pets,
+              label: 'View Puppies',
+              filled: false,
+              onPressed: () async {
+                final litter = await _getLitterForFlow(flow);
+
+                if (litter == null || !context.mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('No litter found for this flow')),
+                  );
+                  return;
+                }
+
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => LitterPuppiesPage(litter: litter),
+                  ),
+                );
+              },
+            ),
+            ),
+            ///
+            const SizedBox(height: 10),
+
+            SizedBox(
+              width: double.infinity,
+              child: AnimatedScale(
+              scale: _weightsPressed ? 0.96 : 1.0,
+              duration: const Duration(milliseconds: 120),
+              child: flowButton(
+              icon: Icons.add,
+              label: 'Add Today’s Weights',
+              pressed: _weightsPressed,
+              onPressed: () async {
+                setState(() => _weightsPressed = true);
+                await Future.delayed(const Duration(milliseconds: 120));
+                setState(() => _weightsPressed = false);
+
+                final litter = await _getLitterForFlow(flow);
+
+                if (litter == null || !context.mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('No litter found for this flow')),
+                  );
+                  return;
+                }
+
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => LitterWeightsPage(litter: litter),
+                  ),
+                );
+              },
+            ),
+            ),
+            ),
+
+            const SizedBox(height: 10),
+
+            SizedBox(
+              width: double.infinity,
+              child: AnimatedScale(
+              scale: _graphPressed ? 0.96 : 1.0,
+              duration: const Duration(milliseconds: 120),
+              child: flowButton(
+              icon: Icons.show_chart,
+              label: 'View Graph',
+              filled: false,
+              pressed: _graphPressed,
+              onPressed: () async {
+                setState(() => _graphPressed = true);
+                await Future.delayed(const Duration(milliseconds: 120));
+                setState(() => _graphPressed = false);
+
+                final litter = await _getLitterForFlow(flow);
+
+                if (litter == null || !context.mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('No litter found for this flow')),
+                  );
+                  return;
+                }
+
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => LitterWeightsPage(litter: litter),
+                  ),
+                );
+              },
+            ),
+            ),
+            ),
+            ///k
+          ],
+        ),
+      ),
+    );
+  }
+///
   Widget _headerCard() {
     final activeFlows = tasks
         .map((t) => t['breeding_flows'])
@@ -259,10 +539,17 @@ class _FlowDashboardPageState extends State<FlowDashboardPage> {
         .toSet()
         .length;
 
-    return Container(
-      padding: const EdgeInsets.all(18),
-      decoration: BoxDecoration(
-        color: flowHeader,
+        return Container(
+          padding: const EdgeInsets.all(18),
+          decoration: BoxDecoration(
+            gradient: const LinearGradient(
+      colors: [
+        Color(0xFF8E44AD),
+        Color(0xFF6C3483),
+      ],
+      begin: Alignment.topLeft,
+      end: Alignment.bottomRight,
+    ),
         borderRadius: BorderRadius.circular(22),
         boxShadow: const [
           BoxShadow(
@@ -274,23 +561,41 @@ class _FlowDashboardPageState extends State<FlowDashboardPage> {
       ),
       child: Row(
         children: [
-          const Icon(Icons.timeline, size: 34),
+          Container(
+          width: 54,
+          height: 54,
+          decoration: BoxDecoration(
+            color: Colors.white.withOpacity(0.22),
+            borderRadius: BorderRadius.circular(18),
+          ),
+          child: const Icon(
+            Icons.route,
+            size: 34,
+            color: Colors.white,
+          ),
+        ),
           const SizedBox(width: 14),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 const Text(
-                  'THE FLOW',
-                  style: TextStyle(
-                    fontSize: 24,
-                    fontWeight: FontWeight.w900,
-                  ),
-                ),
+              'THE FLOW',
+              style: TextStyle(
+                fontSize: 24,
+                fontWeight: FontWeight.w900,
+                color: Colors.white,
+                letterSpacing: 0.5,
+              ),
+            ),
                 Text(
-                  '$activeFlows active flow${activeFlows == 1 ? '' : 's'} being monitored',
-                  style: const TextStyle(fontSize: 15),
+                '$activeFlows active flow${activeFlows == 1 ? '' : 's'} being monitored',
+                style: const TextStyle(
+                  fontSize: 15,
+                  color: Colors.white,
+                  fontWeight: FontWeight.w500,
                 ),
+              ),
               ],
             ),
           ),
@@ -407,16 +712,23 @@ class _FlowDashboardPageState extends State<FlowDashboardPage> {
                 vertical: 5,
               ),
               decoration: BoxDecoration(
-                color: const Color(0xFFD4AF37).withOpacity(0.18),
-                borderRadius: BorderRadius.circular(20),
+              gradient: LinearGradient(
+                colors: [
+                  flowPrimary,
+                  flowPrimaryDark,
+                ],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
               ),
-              child: Text(
-                _flowDisplayName(flow),
-                style: const TextStyle(
-                  fontSize: 12,
-                  fontWeight: FontWeight.bold,
+              borderRadius: BorderRadius.circular(22),
+              boxShadow: [
+                BoxShadow(
+                  blurRadius: 14,
+                  offset: const Offset(0, 7),
+                  color: flowPrimary.withOpacity(0.25),
                 ),
-              ),
+              ],
+            ),
             ),
 
             const SizedBox(height: 8),

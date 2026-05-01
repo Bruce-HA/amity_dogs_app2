@@ -1,3 +1,5 @@
+import 'dart:typed_data';
+
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:file_picker/file_picker.dart';
@@ -27,11 +29,14 @@ class _DogPhotosTabState extends State<DogPhotosTab> {
   List<Map<String, dynamic>> photos = [];
   bool loading = true;
 
+  static const int maxUploadWidth = 1600;
+  static const int jpgQuality = 85;
+
   @override
   void initState() {
     super.initState();
     loadPhotos();
-    print("DOG ALA: ${widget.dogAla}");
+    debugPrint("DOG ALA: ${widget.dogAla}");
   }
 
   /*
@@ -51,8 +56,11 @@ class _DogPhotosTabState extends State<DogPhotosTab> {
         .order('display_order', ascending: true)
         .order('created_at', ascending: false);
 
-    photos = List<Map<String, dynamic>>.from(response);
+    photos = List<Map<String, dynamic>>.from(response)
+      .where((p) => p['photo_exists_on_zooeasy'] != false)
+      .toList();
 
+    if (!mounted) return;
     setState(() => loading = false);
   }
 
@@ -69,7 +77,77 @@ class _DogPhotosTabState extends State<DogPhotosTab> {
   String getFullUrl(String fileName) {
     return supabase.storage
         .from('dog_files')
-        .getPublicUrl("${widget.dogAla}/photos/$fileName");
+        .getPublicUrl(buildStoragePath(fileName));
+  }
+
+  String getDisplayUrl(String fileName) {
+    return supabase.storage.from('dog_files').getPublicUrl(
+          buildStoragePath(fileName),
+          transform: const TransformOptions(
+            width: 600,
+            height: 800,
+            resize: ResizeMode.cover,
+            quality: 70,
+          ),
+        );
+  }
+
+  /*
+  =============================
+  IMAGE PROCESSING
+  =============================
+  */
+
+  Uint8List? processImageBytes({
+    required Uint8List originalBytes,
+    required String extension,
+  }) {
+    final decodedImage = img.decodeImage(originalBytes);
+
+    if (decodedImage == null) {
+      return null;
+    }
+
+    final resized = decodedImage.width > maxUploadWidth
+        ? img.copyResize(
+            decodedImage,
+            width: maxUploadWidth,
+          )
+        : decodedImage;
+
+    final ext = extension.toLowerCase();
+
+    // Keep PNG as PNG because it may contain transparency.
+    if (ext == 'png') {
+      return Uint8List.fromList(img.encodePng(resized));
+    }
+
+    // For jpg/jpeg/heic/webp inputs, store as JPG.
+    // This keeps the app reliable because Dart image encoding support
+    // for HEIC/WebP output can be inconsistent.
+    return Uint8List.fromList(
+      img.encodeJpg(
+        resized,
+        quality: jpgQuality,
+      ),
+    );
+  }
+
+  String cleanExtension(String fileName) {
+    final parts = fileName.split('.');
+    if (parts.length < 2) return 'jpg';
+
+    final ext = parts.last.toLowerCase().trim();
+
+    if (ext == 'jpeg') return 'jpg';
+    if (ext == 'png') return 'png';
+    if (ext == 'jpg') return 'jpg';
+
+    // HEIC and WEBP are decoded, resized, then stored as JPG.
+    if (ext == 'heic') return 'jpg';
+    if (ext == 'webp') return 'jpg';
+
+    return 'jpg';
   }
 
   /*
@@ -80,9 +158,8 @@ class _DogPhotosTabState extends State<DogPhotosTab> {
 
   Future<void> setHero(Map<String, dynamic> photo) async {
     final photoId = photo['id'];
-    final fileName = photo['url'];
 
-    if (photoId == null || fileName == null) return;
+    if (photoId == null) return;
 
     await supabase
         .from('dog_photos')
@@ -94,17 +171,9 @@ class _DogPhotosTabState extends State<DogPhotosTab> {
         .update({'is_hero': true})
         .eq('id', photoId);
 
-    final originalPath = buildStoragePath(fileName);
-    final heroPath = buildStoragePath("hero.jpg");
-
-    final bytes =
-        await supabase.storage.from('dog_files').download(originalPath);
-
-    await supabase.storage.from('dog_files').uploadBinary(
-          heroPath,
-          bytes,
-          fileOptions: const FileOptions(upsert: true),
-        );
+    // IMPORTANT:
+    // We do NOT create hero.jpg anymore.
+    // Hero image is controlled only by dog_photos.is_hero.
 
     await loadPhotos();
     widget.onHeroChanged?.call();
@@ -126,57 +195,58 @@ class _DogPhotosTabState extends State<DogPhotosTab> {
 
     if (result == null || result.files.single.bytes == null) return;
 
-    final originalBytes = result.files.single.bytes!;
+    final pickedFile = result.files.single;
+    final originalBytes = pickedFile.bytes!;
 
-    final img.Image? decodedImage =
-      img.decodeImage(originalBytes);
+    final extension = cleanExtension(pickedFile.name);
 
-    if (decodedImage == null) {
+    final processedBytes = processImageBytes(
+      originalBytes: originalBytes,
+      extension: extension,
+    );
+
+    if (processedBytes == null) {
+      if (!mounted) return;
+
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text("Could not process image"),
         ),
       );
+
       return;
     }
 
-    final jpgBytes = img.encodeJpg(
-      decodedImage,
-      quality: 85,
-    );
-
     final fileName =
-        "${DateTime.now().millisecondsSinceEpoch}.jpg";
+        "${DateTime.now().millisecondsSinceEpoch}.$extension";
 
     final storagePath = buildStoragePath(fileName);
 
-    await supabase.storage
-        .from('dog_files')
-        .uploadBinary(
+    await supabase.storage.from('dog_files').uploadBinary(
           storagePath,
-          jpgBytes,
+          processedBytes,
           fileOptions: const FileOptions(
             upsert: true,
           ),
         );
 
-    await supabase
-        .from('dog_photos')
-        .insert({
-          'dog_id': widget.dogId,
-          'dog_ala': widget.dogAla.toString(),
-          'file_name': fileName,
-          'url': fileName,
-          'thumb_url': fileName,
-          'description': '',
-          'is_hero': false,
-          'display_order': photos.length,
-          'rotation': 0,
-          'photo_exists_on_zooeasy': false,
-        });
+    await supabase.from('dog_photos').insert({
+      'dog_id': widget.dogId,
+      'dog_ala': widget.dogAla,
+      'file_name': fileName,
+      'url': fileName,
+      'thumb_url': fileName,
+      'description': '',
+      'is_hero': photos.isEmpty,
+      'display_order': photos.length,
+      'rotation': 0,
+      'photo_exists_on_zooeasy': false,
+    });
 
     await loadPhotos();
     widget.onHeroChanged?.call();
+
+    if (!mounted) return;
 
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(
@@ -194,6 +264,7 @@ class _DogPhotosTabState extends State<DogPhotosTab> {
   Widget buildPhotoCard(Map<String, dynamic> photo) {
     final fileName = photo['url'] ?? "";
     final description = photo['description'] ?? "";
+    final displayUrl = getDisplayUrl(fileName);
     final fullUrl = getFullUrl(fileName);
 
     return GestureDetector(
@@ -225,10 +296,11 @@ class _DogPhotosTabState extends State<DogPhotosTab> {
                 children: [
                   Positioned.fill(
                     child: Transform.rotate(
-                      angle: ((photo['rotation'] ?? 0) as num).toDouble()
-                          * 3.1415926535 / 180,
+                      angle: ((photo['rotation'] ?? 0) as num).toDouble() *
+                          3.1415926535 /
+                          180,
                       child: Image.network(
-                        fullUrl,
+                        displayUrl,
                         fit: BoxFit.cover,
                         errorBuilder: (_, __, ___) {
                           return Container(
@@ -241,6 +313,7 @@ class _DogPhotosTabState extends State<DogPhotosTab> {
                       ),
                     ),
                   ),
+
                   Positioned(
                     top: 4,
                     right: 4,
@@ -257,6 +330,7 @@ class _DogPhotosTabState extends State<DogPhotosTab> {
                 ],
               ),
             ),
+
             if (description.isNotEmpty)
               Padding(
                 padding: const EdgeInsets.all(6),
@@ -295,6 +369,7 @@ class _DogPhotosTabState extends State<DogPhotosTab> {
             label: const Text("Add Photo"),
           ),
         ),
+
         Expanded(
           child: photos.isEmpty
               ? const Center(child: Text("No photos uploaded"))

@@ -73,62 +73,62 @@ class LitterTaskService {
     // ==============================
 
     if (settings['use_drontal'] == true) {
-      for (final day in [14, 28, 42, 56]) {
-        tasks.add(_task(
-          flowId: flowId,
-          group: 'Puppy Care',
-          title: 'Drontal Day $day',
-          type: 'drontal',
-          dueDate: dob.add(Duration(days: day)),
-        ));
-      }
+    for (final day in [14, 28, 42, 56]) {
+      final week = (day / 7).round();
+
+      tasks.add(_task(
+        flowId: flowId,
+        group: 'Puppy Care',
+        title: 'Drontal Week $week',
+        type: 'drontal',
+        dueDate: dob.add(Duration(days: day)),
+      ));
     }
+  }
 
     // ==============================
     // OPTIONAL: BAYCOX
     // ==============================
 
     if (settings['use_baycox'] == true) {
-      tasks.add(_task(
-        flowId: flowId,
-        group: 'Puppy Care',
-        title: 'Baycox Day 1 — Mother',
-        type: 'baycox',
-        dueDate: dob.add(const Duration(days: 1)),
-      ));
+    tasks.add(_task(
+      flowId: flowId,
+      group: 'Puppy Care',
+      title: 'Baycox — Mother',
+      type: 'baycox',
+      dueDate: dob.add(const Duration(days: 1)),
+    ));
+
+    for (final day in [21, 28]) {
+      final week = (day / 7).round();
 
       tasks.add(_task(
         flowId: flowId,
         group: 'Puppy Care',
-        title: 'Baycox Day 21 — Mother + Puppies',
+        title: 'Baycox Week $week — Mother + Puppies',
         type: 'baycox',
-        dueDate: dob.add(const Duration(days: 21)),
-      ));
-
-      tasks.add(_task(
-        flowId: flowId,
-        group: 'Puppy Care',
-        title: 'Baycox Day 28 — Mother + Puppies',
-        type: 'baycox',
-        dueDate: dob.add(const Duration(days: 28)),
+        dueDate: dob.add(Duration(days: day)),
       ));
     }
+  }
 
-    // ==============================
-    // OPTIONAL: NAIL TRIMMING
-    // ==============================
+  // ==============================
+  // OPTIONAL: NAIL TRIMMING
+  // ==============================
 
-    if (settings['use_nail_trimming'] == true) {
-      for (final day in [7, 14, 21, 28, 35, 42, 49, 56]) {
-        tasks.add(_task(
-          flowId: flowId,
-          group: 'Puppy Care',
-          title: 'Trim Puppy Nails Day $day',
-          type: 'nail_trimming',
-          dueDate: dob.add(Duration(days: day)),
-        ));
-      }
+  if (settings['use_nail_trimming'] == true) {
+    for (final day in [7, 14, 21, 28, 35, 42, 49, 56]) {
+      final week = (day / 7).round();
+
+      tasks.add(_task(
+        flowId: flowId,
+        group: 'Puppy Care',
+        title: 'Trim Nails Week $week',
+        type: 'nail_trimming',
+        dueDate: dob.add(Duration(days: day)),
+      ));
     }
+  }
 
     // ==============================
     // OPTIONAL: ENS
@@ -152,6 +152,7 @@ class LitterTaskService {
 
     if (settings['use_photo_reminders'] == true) {
       for (final day in [7, 14, 21, 28, 35, 42, 49, 56]) {
+        final week = (day / 7).round();
         tasks.add(_task(
           flowId: flowId,
           group: 'Puppy Care',
@@ -161,6 +162,26 @@ class LitterTaskService {
         ));
       }
     }
+
+    for (final day in [28, 42, 56]) {
+    final week = (day / 7).round();
+
+    tasks.add(_task(
+      flowId: flowId,
+      group: 'Puppy Care',
+      title: 'Pups $week weeks old',
+      type: 'pups_milestone',
+      dueDate: dob.add(Duration(days: day)),
+    ));
+  }
+
+    tasks.add(_task(
+    flowId: flowId,
+    group: 'Puppy Care',
+    title: 'SpaySecure Contract Check',
+    type: 'spay_contract_check',
+    dueDate: dob.add(const Duration(days: 52)),
+  ));
 
     for (final task in tasks) {
       await _insertIfMissing(task);
