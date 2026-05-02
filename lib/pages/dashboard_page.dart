@@ -40,19 +40,19 @@ class _DashboardPageState extends State<DashboardPage> {
         setState(() => loading = false);
         return;
       }
+
       try {
-      final appUser = await supabase
-          .from('app_users')
-          .select('first_name, last_name, company_profile_id')
-          .eq('id', user.id)
-          .maybeSingle();
+        final appUser = await supabase
+            .from('app_users')
+            .select('first_name, last_name, company_profile_id')
+            .eq('id', user.id)
+            .maybeSingle();
 
-      debugPrint('APP USER DATA: $appUser');
-
-      userName = appUser?['first_name'];
-    } catch (e) {
-      debugPrint('Dashboard app user name error: $e');
-    }
+        debugPrint('APP USER DATA: $appUser');
+        userName = appUser?['first_name'];
+      } catch (e) {
+        debugPrint('Dashboard app user name error: $e');
+      }
 
       final res = await supabase
           .from('company_profile')
@@ -70,7 +70,6 @@ class _DashboardPageState extends State<DashboardPage> {
       debugPrint('Dashboard company profile error: $e');
 
       if (!mounted) return;
-
       setState(() => loading = false);
     }
   }
@@ -79,7 +78,6 @@ class _DashboardPageState extends State<DashboardPage> {
     if (hex == null || hex.isEmpty) return fallback;
 
     final cleaned = hex.replaceAll('#', '');
-
     if (cleaned.length != 6) return fallback;
 
     return Color(int.parse('FF$cleaned', radix: 16));
@@ -134,20 +132,18 @@ class _DashboardPageState extends State<DashboardPage> {
                       footerText: footerText,
                       logoUrl: logoUrl,
                       associationLogoUrl: associationLogoUrl,
-                      userName: userName, // 👈 ADD THIS
+                      userName: userName,
                     ),
                   ),
-
                   SliverPadding(
                     padding: const EdgeInsets.all(16),
                     sliver: SliverGrid.count(
                       crossAxisCount: 2,
                       crossAxisSpacing: 14,
                       mainAxisSpacing: 14,
-                      childAspectRatio: 1.05,
+                      childAspectRatio: 0.95,
                       children: [
                         dashboardTile(
-                          context,
                           icon: Icons.pets,
                           title: 'Dogs',
                           subtitle: 'Profiles & breeding dogs',
@@ -155,7 +151,6 @@ class _DashboardPageState extends State<DashboardPage> {
                           colour: primary,
                         ),
                         dashboardTile(
-                          context,
                           icon: Icons.route,
                           title: 'The Flow',
                           subtitle: 'Breeding workflow',
@@ -163,7 +158,6 @@ class _DashboardPageState extends State<DashboardPage> {
                           colour: accent,
                         ),
                         dashboardTile(
-                          context,
                           icon: Icons.mark_email_unread,
                           title: 'CRM Inbox',
                           subtitle: 'Sales enquiries',
@@ -171,7 +165,6 @@ class _DashboardPageState extends State<DashboardPage> {
                           colour: Colors.teal,
                         ),
                         dashboardTile(
-                          context,
                           icon: Icons.people,
                           title: 'People',
                           subtitle: 'Owners & breeders',
@@ -179,7 +172,6 @@ class _DashboardPageState extends State<DashboardPage> {
                           colour: Colors.indigo,
                         ),
                         dashboardTile(
-                          context,
                           icon: Icons.event_note,
                           title: 'Daily',
                           subtitle: 'Notes & records',
@@ -187,7 +179,6 @@ class _DashboardPageState extends State<DashboardPage> {
                           colour: Colors.orange,
                         ),
                         dashboardTile(
-                          context,
                           icon: Icons.calendar_month,
                           title: 'Calendar',
                           subtitle: 'Dates & reminders',
@@ -195,7 +186,6 @@ class _DashboardPageState extends State<DashboardPage> {
                           colour: Colors.blue,
                         ),
                         dashboardTile(
-                          context,
                           icon: Icons.directions_car,
                           title: 'Vehicle Log',
                           subtitle: 'Trips & expenses',
@@ -203,7 +193,6 @@ class _DashboardPageState extends State<DashboardPage> {
                           colour: Colors.green,
                         ),
                         dashboardTile(
-                          context,
                           icon: Icons.bar_chart,
                           title: 'Reports',
                           subtitle: 'Breeding reports',
@@ -212,7 +201,6 @@ class _DashboardPageState extends State<DashboardPage> {
                           darkText: true,
                         ),
                         dashboardTile(
-                          context,
                           icon: Icons.admin_panel_settings,
                           title: 'Admin',
                           subtitle: 'Settings & profile',
@@ -220,7 +208,6 @@ class _DashboardPageState extends State<DashboardPage> {
                           colour: Colors.deepPurple,
                         ),
                         dashboardTile(
-                          context,
                           icon: Icons.build,
                           title: 'Tools',
                           subtitle: 'Utilities',
@@ -230,7 +217,6 @@ class _DashboardPageState extends State<DashboardPage> {
                       ],
                     ),
                   ),
-
                   SliverToBoxAdapter(
                     child: Padding(
                       padding: const EdgeInsets.fromLTRB(16, 0, 16, 24),
@@ -258,17 +244,14 @@ class _DashboardPageState extends State<DashboardPage> {
     required String footerText,
     required String? logoUrl,
     required String? associationLogoUrl,
-    required String? userName, // 👈 ADD THIS
+    required String? userName,
   }) {
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.fromLTRB(18, 18, 18, 24),
       decoration: BoxDecoration(
         gradient: LinearGradient(
-          colors: [
-            primary,
-            accent,
-          ],
+          colors: [primary, accent],
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
         ),
@@ -296,15 +279,12 @@ class _DashboardPageState extends State<DashboardPage> {
                     ),
                     const SizedBox(height: 4),
                     Text(
-                      userName != null
-                          ? 'Welcome back $userName'
-                          : 'Welcome',
+                      userName != null ? 'Welcome back $userName' : 'Welcome',
                       style: const TextStyle(
                         color: Colors.white,
                         fontSize: 18,
                       ),
                     ),
-
                     if (company?['association_number'] != null)
                       Text(
                         company!['association_number'],
@@ -321,9 +301,7 @@ class _DashboardPageState extends State<DashboardPage> {
                 _logoBubble(associationLogoUrl, Icons.verified, secondary),
             ],
           ),
-
           const SizedBox(height: 18),
-
           Container(
             padding: const EdgeInsets.all(14),
             decoration: BoxDecoration(
@@ -392,8 +370,7 @@ class _DashboardPageState extends State<DashboardPage> {
     );
   }
 
-  Widget dashboardTile(
-    BuildContext context, {
+  Widget dashboardTile({
     required IconData icon,
     required String title,
     required String subtitle,
@@ -401,72 +378,126 @@ class _DashboardPageState extends State<DashboardPage> {
     required Color colour,
     bool darkText = false,
   }) {
-    final textColour = darkText ? Colors.black87 : Colors.white;
+    return _DashboardTile(
+      icon: icon,
+      title: title,
+      subtitle: subtitle,
+      page: page,
+      colour: colour,
+      darkText: darkText,
+    );
+  }
+}
 
-    return InkWell(
-      onTap: () {
+class _DashboardTile extends StatefulWidget {
+  final IconData icon;
+  final String title;
+  final String subtitle;
+  final Widget page;
+  final Color colour;
+  final bool darkText;
+
+  const _DashboardTile({
+    required this.icon,
+    required this.title,
+    required this.subtitle,
+    required this.page,
+    required this.colour,
+    required this.darkText,
+  });
+
+  @override
+  State<_DashboardTile> createState() => _DashboardTileState();
+}
+
+class _DashboardTileState extends State<_DashboardTile> {
+  bool pressed = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final textColour = widget.darkText ? Colors.black87 : Colors.white;
+
+    return GestureDetector(
+      onTapDown: (_) => setState(() => pressed = true),
+      onTapCancel: () => setState(() => pressed = false),
+      onTapUp: (_) {
+        setState(() => pressed = false);
+
         Navigator.push(
           context,
-          MaterialPageRoute(builder: (_) => page),
+          MaterialPageRoute(builder: (_) => widget.page),
         );
       },
-      borderRadius: BorderRadius.circular(24),
-      child: Container(
-        padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(
-          color: colour,
-          borderRadius: BorderRadius.circular(24),
-          boxShadow: [
-            BoxShadow(
-              color: colour.withOpacity(0.28),
-              blurRadius: 12,
-              offset: const Offset(0, 7),
+      child: AnimatedScale(
+        scale: pressed ? 0.96 : 1.0,
+        duration: const Duration(milliseconds: 120),
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 160),
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              colors: [
+                widget.colour.withOpacity(0.95),
+                widget.colour,
+              ],
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
             ),
-          ],
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Container(
-              width: 54,
-              height: 54,
-              decoration: BoxDecoration(
-                color: Colors.white.withOpacity(0.22),
-                borderRadius: BorderRadius.circular(18),
+            borderRadius: BorderRadius.circular(24),
+            boxShadow: [
+              BoxShadow(
+                color: widget.colour.withOpacity(pressed ? 0.38 : 0.24),
+                blurRadius: pressed ? 18 : 12,
+                offset: Offset(0, pressed ? 4 : 7),
               ),
-              child: Icon(
-                icon,
-                size: 34,
-                color: textColour,
+            ],
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Container(
+                width: 54,
+                height: 54,
+                decoration: BoxDecoration(
+                  color: Colors.white.withOpacity(0.22),
+                  borderRadius: BorderRadius.circular(18),
+                ),
+                child: Icon(
+                  widget.icon,
+                  size: 34,
+                  color: textColour,
+                ),
               ),
-            ),
-
-            const Spacer(),
-
-            Text(
-              title,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: TextStyle(
-                color: textColour,
-                fontSize: 18,
-                fontWeight: FontWeight.w800,
+              const SizedBox(height: 10),
+              const Spacer(),
+              Text(
+                widget.title,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  color: textColour,
+                  fontSize: 18,
+                  fontWeight: FontWeight.w800,
+                ),
               ),
-            ),
-
-            const SizedBox(height: 4),
-
-            Text(
-              subtitle,
-              maxLines: 2,
-              overflow: TextOverflow.ellipsis,
-              style: TextStyle(
-                color: textColour.withOpacity(0.85),
-                fontSize: 12,
-                fontWeight: FontWeight.w500,
+              const SizedBox(height: 4),
+              Padding(
+                padding: const EdgeInsets.only(right: 6),
+                child: Text(
+                  widget.subtitle,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  softWrap: true,
+                  style: TextStyle(
+                    color: textColour.withOpacity(0.85),
+                    fontSize: 12,
+                    height: 1.2,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../widgets/app_title.dart';
 import 'litter_weights_chart_page.dart';
+import '../../ui/app_page_theme.dart';
 
 class LitterWeightsPage extends StatefulWidget {
   final Map litter;
@@ -17,6 +18,11 @@ class LitterWeightsPage extends StatefulWidget {
 
 class _LitterWeightsPageState extends State<LitterWeightsPage> {
   final supabase = Supabase.instance.client;
+  static const flowTheme = AppPageThemes.flow;
+
+  static Color get flowPrimary => flowTheme.primary;
+  static Color get flowPrimaryDark => flowTheme.dark;
+  static Color get flowLight => flowTheme.light;
 
   List puppies = [];
   List weights = [];
@@ -106,47 +112,125 @@ class _LitterWeightsPageState extends State<LitterWeightsPage> {
   }
 
   Future<void> enterWeight(Map pup, String date) async {
-    final controller = TextEditingController();
+    final existingWeight = getWeight(pup['id'], date);
+
+    final controller = TextEditingController(
+      text: existingWeight == null ? '' : existingWeight.toString(),
+    );
 
     DateTime selectedDate = DateTime.parse(date);
 
     await showDialog(
       context: context,
-      builder: (_) => AlertDialog(
-        title: Text(label(pup)),
-        content: TextField(
-          controller: controller,
-          keyboardType: TextInputType.number,
-          decoration: const InputDecoration(labelText: 'Weight (g)'),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Cancel'),
-          ),
-          ElevatedButton(
-            onPressed: () async {
-              final value = int.tryParse(controller.text);
-              if (value == null) return;
+      builder: (_) {
+        return StatefulBuilder(
+          builder: (context, setDialogState) {
+            return AlertDialog(
+              title: Text(label(pup)),
+              content: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  ListTile(
+                    contentPadding: EdgeInsets.zero,
+                    title: const Text('Weight Date'),
+                    subtitle: Text(
+                      selectedDate.toIso8601String().split('T').first,
+                    ),
+                    trailing: Icon(
+                      Icons.calendar_month,
+                      color: flowPrimary,
+                    ),
+                    onTap: () async {
+                      final picked = await showDatePicker(
+                        context: context,
+                        initialDate: selectedDate,
+                        firstDate: DateTime(2020),
+                        lastDate: DateTime(2035),
+                      );
 
-              await supabase.from('puppy_weights').upsert({
-                'dog_id': pup['id'],
-                'litter_id': widget.litter['id'],
-                'weight': value,
-                'recorded_at':
-                    selectedDate.toIso8601String().split('T').first,
-                'session': 'daily',
-              });
+                      if (picked != null) {
+                        setDialogState(() {
+                          selectedDate = picked;
+                        });
+                      }
+                    },
+                  ),
+                  TextField(
+                    controller: controller,
+                    keyboardType: TextInputType.number,
+                    decoration: const InputDecoration(
+                      labelText: 'Weight (g)',
+                    ),
+                  ),
+                ],
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(context),
+                  child: const Text('Cancel'),
+                ),
+                ElevatedButton(
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: flowPrimary,
+                    foregroundColor: Colors.white,
+                  ),
+                  onPressed: () async {
+                    final value = int.tryParse(controller.text);
+                    if (value == null) return;
 
-              if (!mounted) return;
-              Navigator.pop(context);
-              loadData();
-            },
-            child: const Text('Save'),
-          ),
-        ],
-      ),
+                    await supabase.from('puppy_weights').upsert({
+                      'dog_id': pup['id'],
+                      'litter_id': widget.litter['id'],
+                      'weight': value,
+                      'recorded_at':
+                          selectedDate.toIso8601String().split('T').first,
+                      'session': 'daily',
+                    });
+
+                    if (!mounted) return;
+                    Navigator.pop(context);
+                    loadData();
+                  },
+                  child: const Text('Save'),
+                ),
+              ],
+            );
+          },
+        );
+      },
     );
+  }
+
+  Future<void> addNewDateRow() async {
+    DateTime selectedDate = DateTime.now();
+
+    final picked = await showDatePicker(
+      context: context,
+      initialDate: selectedDate,
+      firstDate: DateTime(2020),
+      lastDate: DateTime(2035),
+    );
+
+    if (picked == null) return;
+
+    final dateString = picked.toIso8601String().split('T').first;
+
+    // Check if already exists
+    final exists = weights.any((w) => w['recorded_at'] == dateString);
+    if (exists) return;
+
+    // Insert placeholder row (one pup is enough to create the date row)
+    if (puppies.isEmpty) return;
+
+    await supabase.from('puppy_weights').insert({
+      'dog_id': puppies.first['id'],
+      'litter_id': widget.litter['id'],
+      'weight': null,
+      'recorded_at': dateString,
+      'session': 'daily',
+    });
+
+    loadData();
   }
 
   List<String> getDates() {
@@ -221,9 +305,17 @@ class _LitterWeightsPageState extends State<LitterWeightsPage> {
     if (!dates.contains(today)) dates.add(today);
 
     return Scaffold(
+      backgroundColor: Colors.grey.shade100,
       appBar: AppBar(
+        backgroundColor: flowPrimary,
+        foregroundColor: Colors.white,
         title: buildTitle('Weights', 'LitterWeightsPage'),
         actions: [
+          IconButton(
+            icon: const Icon(Icons.add),
+            tooltip: 'Add Weight Day',
+            onPressed: addNewDateRow,
+          ),
           IconButton(
             icon: const Icon(Icons.show_chart),
             onPressed: () {
