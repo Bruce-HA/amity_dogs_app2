@@ -26,6 +26,7 @@ class _EnquiryDetailPageState extends State<EnquiryDetailPage> {
   Map<String, dynamic>? person;
   Map<String, dynamic>? puppy;
   List<Map<String, dynamic>> communications = [];
+  List<Map<String, dynamic>> inquiryNotes = [];
 
   final TextEditingController noteController = TextEditingController();
 
@@ -85,6 +86,15 @@ class _EnquiryDetailPageState extends State<EnquiryDetailPage> {
         comms = List<Map<String, dynamic>>.from(commsRes);
       }
 
+      final notesRes = await supabase
+          .from('inquiry_notes')
+          .select()
+          .eq('inquiry_id', widget.inquiryId)
+          .order('is_pinned', ascending: false)
+          .order('created_at', ascending: false);
+
+      final notesList = List<Map<String, dynamic>>.from(notesRes);
+
       if (inquiryMap['puppy_dog_id'] != null) {
         final puppyRes = await supabase
             .from('dogs')
@@ -102,6 +112,7 @@ class _EnquiryDetailPageState extends State<EnquiryDetailPage> {
         person = personMap;
         puppy = puppyMap;
         communications = comms;
+        inquiryNotes = notesList;
         isLoading = false;
       });
     } catch (e) {
@@ -115,6 +126,93 @@ class _EnquiryDetailPageState extends State<EnquiryDetailPage> {
         SnackBar(content: Text('Could not load enquiry: $e')),
       );
     }
+  }
+
+  String _formatDateTime(dynamic value) {
+    if (value == null) return '—';
+
+    try {
+      final date = DateTime.parse(value.toString()).toLocal();
+
+      const months = [
+        'Jan','Feb','Mar','Apr','May','Jun',
+        'Jul','Aug','Sep','Oct','Nov','Dec'
+      ];
+
+      final day = date.day;
+      final month = months[date.month - 1];
+
+      final hour = date.hour % 12 == 0 ? 12 : date.hour % 12;
+      final minute = date.minute.toString().padLeft(2, '0');
+      final ampm = date.hour >= 12 ? 'pm' : 'am';
+
+      return '$day $month $hour:$minute$ampm';
+    } catch (_) {
+      return value.toString();
+    }
+  }
+
+  DateTime? _toDateTime(dynamic value) {
+    if (value == null) return null;
+
+    try {
+      return DateTime.parse(value.toString()).toLocal();
+    } catch (_) {
+      return null;
+    }
+  }
+
+  String _timeAgo(dynamic value) {
+    final date = _toDateTime(value);
+    if (date == null) return '';
+
+    final diff = DateTime.now().difference(date);
+
+    if (diff.inMinutes < 1) return 'just now';
+    if (diff.inMinutes < 60) return '${diff.inMinutes}m ago';
+    if (diff.inHours < 24) return '${diff.inHours}h ago';
+    if (diff.inDays < 7) return '${diff.inDays}d ago';
+
+    final weeks = (diff.inDays / 7).floor();
+    return '${weeks}w ago';
+  }
+
+  Color _enquiryAgeColor() {
+    final received = _toDateTime(inquiry?['enquiry_submitted_at']);
+    if (received == null) return Colors.grey;
+
+    final diff = DateTime.now().difference(received);
+
+    if (diff.inHours < 12) return Colors.green;
+    if (diff.inHours < 24) return Colors.orange;
+
+    return Colors.red;
+  }
+
+  String _responseTimeText() {
+    final received = _toDateTime(inquiry?['enquiry_submitted_at']);
+    if (received == null) return 'Not available';
+
+    Map<String, dynamic>? firstOutbound;
+
+    for (final msg in communications.reversed) {
+      if (msg['direction'] == 'outbound') {
+        firstOutbound = msg;
+        break;
+      }
+    }
+
+    if (firstOutbound == null) return 'No reply sent yet';
+
+    final replied = _toDateTime(firstOutbound['created_at']);
+    if (replied == null) return 'Not available';
+
+    final diff = replied.difference(received);
+
+    if (diff.inMinutes < 60) return '${diff.inMinutes}m';
+    if (diff.inHours < 24) return '${diff.inHours}h ${diff.inMinutes % 60}m';
+
+    return '${diff.inDays}d ${diff.inHours % 24}h';
   }
 
   Future<void> updateStage(String newStage) async {
@@ -161,6 +259,124 @@ class _EnquiryDetailPageState extends State<EnquiryDetailPage> {
       setState(() => isSaving = false);
     }
   }
+  Future<void> addNote() async {
+    final controller = TextEditingController();
+
+    final result = await showDialog<String>(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: const Text('Add Note'),
+        content: TextField(
+          controller: controller,
+          maxLines: 5,
+          decoration: const InputDecoration(
+            hintText: 'Enter note...',
+            border: OutlineInputBorder(),
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(context, controller.text.trim()),
+            child: const Text('Save'),
+          ),
+        ],
+      ),
+    );
+
+    if (result == null || result.isEmpty) return;
+
+    await supabase.from('inquiry_notes').insert({
+      'inquiry_id': widget.inquiryId,
+      'note_text': result,
+      'created_by': supabase.auth.currentUser?.id,
+    });
+
+    await fetchEnquiry();
+  }
+
+  Future<void> editNote(Map<String, dynamic> note) async {
+    final controller = TextEditingController(text: note['note_text'] ?? '');
+
+    final result = await showDialog<String>(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: const Text('Edit Note'),
+        content: TextField(
+          controller: controller,
+          maxLines: 5,
+          decoration: const InputDecoration(
+            border: OutlineInputBorder(),
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(context, controller.text.trim()),
+            child: const Text('Save'),
+          ),
+        ],
+      ),
+    );
+
+    if (result == null || result.isEmpty) return;
+
+    await supabase.from('inquiry_notes').update({
+      'note_text': result,
+      'updated_at': DateTime.now().toIso8601String(),
+    }).eq('id', note['id']);
+
+    await fetchEnquiry();
+  }
+
+  Future<void> deleteNote(Map<String, dynamic> note) async {
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: const Text('Delete note?'),
+        content: const Text('This note will be permanently deleted.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton.icon(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.red,
+              foregroundColor: Colors.white,
+            ),
+            icon: const Icon(Icons.delete),
+            label: const Text('Delete'),
+            onPressed: () => Navigator.pop(context, true),
+          ),
+        ],
+      ),
+    );
+
+    if (confirm != true) return;
+
+    await supabase.from('inquiry_notes').delete().eq('id', note['id']);
+
+    await fetchEnquiry();
+  }
+
+  Future<void> togglePinnedNote(Map<String, dynamic> note) async {
+    final current = note['is_pinned'] == true;
+
+    await supabase.from('inquiry_notes').update({
+      'is_pinned': !current,
+      'updated_at': DateTime.now().toIso8601String(),
+    }).eq('id', note['id']);
+
+    await fetchEnquiry();
+  }
+
 
   Future<void> saveNotes() async {
     if (inquiry == null) return;
@@ -509,24 +725,91 @@ class _EnquiryDetailPageState extends State<EnquiryDetailPage> {
       title: 'Notes',
       icon: Icons.note_alt,
       child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          TextField(
-            controller: noteController,
-            maxLines: 6,
-            decoration: const InputDecoration(
-              hintText: 'Add enquiry notes here...',
-              border: OutlineInputBorder(),
-            ),
-          ),
-          const SizedBox(height: 10),
           Align(
             alignment: Alignment.centerRight,
             child: ElevatedButton.icon(
-              onPressed: isSaving ? null : saveNotes,
-              icon: const Icon(Icons.save),
-              label: const Text('Save Notes'),
+              onPressed: addNote,
+              icon: const Icon(Icons.add),
+              label: const Text('Add Note'),
             ),
           ),
+
+          const SizedBox(height: 10),
+
+          if (inquiryNotes.isEmpty)
+            const Text('No notes yet.')
+          else
+            ...inquiryNotes.map((note) {
+              final pinned = note['is_pinned'] == true;
+
+              return Container(
+                width: double.infinity,
+                margin: const EdgeInsets.only(bottom: 8),
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  color: pinned
+                      ? Colors.amber.withOpacity(.12)
+                      : Colors.grey.shade100,
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(
+                    color: pinned
+                        ? Colors.amber.withOpacity(.6)
+                        : Colors.grey.shade300,
+                  ),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        if (pinned) ...[
+                          const Icon(Icons.star, color: Colors.amber, size: 18),
+                          const SizedBox(width: 6),
+                        ],
+                        Expanded(
+                          child: Text(
+                            _formatDate(note['created_at']),
+                            style: TextStyle(
+                              fontSize: 12,
+                              color: Colors.grey.shade700,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                        ),
+                        IconButton(
+                          tooltip: pinned ? 'Unpin note' : 'Mark important',
+                          icon: Icon(
+                            pinned ? Icons.star : Icons.star_border,
+                            color: pinned ? Colors.amber : Colors.grey,
+                          ),
+                          onPressed: () => togglePinnedNote(note),
+                        ),
+                        IconButton(
+                          tooltip: 'Edit note',
+                          icon: const Icon(Icons.edit, size: 20),
+                          onPressed: () => editNote(note),
+                        ),
+                        IconButton(
+                          tooltip: 'Delete note',
+                          icon: const Icon(Icons.delete_outline, size: 20),
+                          color: Colors.red,
+                          onPressed: () => deleteNote(note),
+                        ),
+                      ],
+                    ),
+
+                    const SizedBox(height: 6),
+
+                    Text(
+                      note['note_text'] ?? '',
+                      style: const TextStyle(fontSize: 14),
+                    ),
+                  ],
+                ),
+              );
+            }),
         ],
       ),
     );
@@ -617,6 +900,65 @@ class _EnquiryDetailPageState extends State<EnquiryDetailPage> {
       ),
     );
   }
+  Widget _buildTimingCard() {
+    final ageColor = _enquiryAgeColor();
+    final receivedAgo = _timeAgo(inquiry?['enquiry_submitted_at']);
+
+    return _sectionCard(
+      title: 'Timing',
+      icon: Icons.schedule,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _infoRow(
+            'Received',
+            '${_formatDateTime(inquiry?['enquiry_submitted_at'])}'
+            '${receivedAgo.isNotEmpty ? ' ($receivedAgo)' : ''}',
+          ),
+
+          _infoRow(
+            'Entered',
+            _formatDateTime(inquiry?['created_at']),
+          ),
+
+          const SizedBox(height: 8),
+
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+            decoration: BoxDecoration(
+              color: ageColor.withOpacity(.12),
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: ageColor.withOpacity(.35)),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(Icons.warning_amber_rounded, size: 18, color: ageColor),
+                const SizedBox(width: 6),
+                Text(
+                  receivedAgo.isEmpty
+                      ? 'No received time recorded'
+                      : 'Enquiry age: $receivedAgo',
+                  style: TextStyle(
+                    color: ageColor,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+              ],
+            ),
+          ),
+
+          const SizedBox(height: 8),
+
+          _infoRow(
+            'Response',
+            _responseTimeText(),
+          ),
+        ],
+      ),
+    );
+  }
+
 
   @override
   Widget build(BuildContext context) {
@@ -645,6 +987,7 @@ class _EnquiryDetailPageState extends State<EnquiryDetailPage> {
                         padding: const EdgeInsets.only(bottom: 24),
                         children: [
                           _buildHeader(),
+                          _buildTimingCard(),   // 👈 ADD THIS
                           _buildBuyerCard(),
                           _buildStageCard(),
                           _buildSalesCard(),

@@ -1,11 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
-
+import 'email_import_page.dart';
 import 'conversation_page.dart';
 import 'enquiry_detail_page.dart';
 import 'enquiry_form_page.dart';
 import 'reply_templates_page.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 class InboxPage extends StatefulWidget {
   const InboxPage({super.key});
@@ -106,8 +107,22 @@ class _InboxPageState extends State<InboxPage> {
     }
   }
 
+   Future<void> _callNumber(String phone) async {
+        final uri = Uri.parse('tel:$phone');
+        if (await canLaunchUrl(uri)) {
+          await launchUrl(uri);
+        }
+      }
+
+      Future<void> _sendEmail(String email) async {
+        final uri = Uri.parse('mailto:$email');
+        if (await canLaunchUrl(uri)) {
+          await launchUrl(uri);
+        }
+      }
+
   List<Map<String, dynamic>> get filteredRows {
-    return inboxRows.where((row) {
+    final rows = inboxRows.where((row) {
       final inquiry = row['inquiry'] as Map<String, dynamic>;
       final person = row['person'] as Map<String, dynamic>?;
 
@@ -147,6 +162,35 @@ class _InboxPageState extends State<InboxPage> {
           return true;
       }
     }).toList();
+
+    // 👇 SORTING ADDED HERE
+    rows.sort((a, b) {
+      final aInquiry = a['inquiry'] as Map<String, dynamic>;
+      final bInquiry = b['inquiry'] as Map<String, dynamic>;
+
+      final aLatest = a['latest_message'] as Map<String, dynamic>?;
+      final bLatest = b['latest_message'] as Map<String, dynamic>?;
+
+      final aDate = DateTime.tryParse(
+            (aLatest?['created_at'] ??
+                    aInquiry['enquiry_submitted_at'] ??
+                    aInquiry['created_at'])
+                .toString(),
+          ) ??
+          DateTime.fromMillisecondsSinceEpoch(0);
+
+      final bDate = DateTime.tryParse(
+            (bLatest?['created_at'] ??
+                    bInquiry['enquiry_submitted_at'] ??
+                    bInquiry['created_at'])
+                .toString(),
+          ) ??
+          DateTime.fromMillisecondsSinceEpoch(0);
+
+      return bDate.compareTo(aDate); // 👈 newest first
+    });
+
+    return rows;
   }
 
   String _personName(Map<String, dynamic>? person) {
@@ -183,11 +227,138 @@ class _InboxPageState extends State<InboxPage> {
 
     try {
       final date = DateTime.parse(value.toString()).toLocal();
-      return DateFormat('dd MMM yyyy').format(date);
+      return DateFormat('dd MMM • h:mm a').format(date);
     } catch (_) {
       return '';
     }
   }
+  DateTime? _toDateTime(dynamic value) {
+    if (value == null) return null;
+
+    try {
+      return DateTime.parse(value.toString()).toLocal();
+    } catch (_) {
+      return null;
+    }
+  }
+
+  String _timeAgo(dynamic value) {
+    final date = _toDateTime(value);
+    if (date == null) return '';
+
+    final diff = DateTime.now().difference(date);
+
+    if (diff.inMinutes < 1) return 'just now';
+    if (diff.inMinutes < 60) return '${diff.inMinutes}m ago';
+    if (diff.inHours < 24) return '${diff.inHours}h ago';
+    if (diff.inDays < 7) return '${diff.inDays}d ago';
+
+    final weeks = (diff.inDays / 7).floor();
+    return '${weeks}w ago';
+  }
+
+  bool _hasOutboundReply(Map<String, dynamic>? latestMessage) {
+    if (latestMessage == null) return false;
+    return latestMessage['direction'] == 'outbound';
+  }
+
+  Color _receivedWarningColor({
+    required dynamic receivedAt,
+    required Map<String, dynamic>? latestMessage,
+  }) {
+    final received = _toDateTime(receivedAt);
+    if (received == null) return Colors.grey;
+
+    final hasReply = _hasOutboundReply(latestMessage);
+    if (hasReply) return Colors.green;
+
+    final diff = DateTime.now().difference(received);
+
+    if (diff.inHours < 12) return Colors.green;
+    if (diff.inHours < 24) return Colors.orange;
+
+    return Colors.red;
+  }
+  String _durationTimer(dynamic fromValue) {
+    final from = _toDateTime(fromValue);
+    if (from == null) return '';
+
+    final diff = DateTime.now().difference(from);
+
+    final days = diff.inDays;
+    final hours = diff.inHours % 24;
+    final minutes = diff.inMinutes % 60;
+
+    return '${days.toString().padLeft(2, '0')}d '
+        '${hours.toString().padLeft(2, '0')}h '
+        '${minutes.toString().padLeft(2, '0')}m';
+  }
+  Future<void> deleteInquiry(String inquiryId) async {
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: const Text('Delete enquiry?'),
+        content: const Text(
+          'This will remove this enquiry from the CRM inbox. The person record will remain.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton.icon(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.red,
+              foregroundColor: Colors.white,
+            ),
+            icon: const Icon(Icons.delete),
+            label: const Text('Delete'),
+            onPressed: () => Navigator.pop(context, true),
+          ),
+        ],
+      ),
+    );
+
+    if (confirm != true) return;
+
+    try {
+      await supabase.from('inquiries').delete().eq('id', inquiryId);
+
+      await fetchInbox();
+
+      if (!mounted) return;
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Enquiry deleted')),
+      );
+    } catch (e) {
+      debugPrint('Delete inquiry error: $e');
+
+      if (!mounted) return;
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Could not delete enquiry: $e')),
+      );
+    }
+  }
+
+
+  String _receivedWarningText({
+    required dynamic receivedAt,
+    required Map<String, dynamic>? latestMessage,
+  }) {
+    final timer = _durationTimer(receivedAt);
+    final hasReply = _hasOutboundReply(latestMessage);
+
+    if (timer.isEmpty) return 'Received time missing';
+
+    if (hasReply) {
+      return 'Replied • received $timer ago';
+    }
+
+    return 'No reply • $timer';
+  }
+
 
   Color _stageColor(String status, bool depositPaid, bool allocated) {
     if (allocated) return Colors.deepPurple;
@@ -264,7 +435,22 @@ class _InboxPageState extends State<InboxPage> {
         .toString();
 
     final lastContact = _formatDate(
-      latestMessage?['created_at'] ?? inquiry['updated_at'] ?? inquiry['created_at'],
+      latestMessage?['created_at'] ??
+          inquiry['enquiry_submitted_at'] ??
+          inquiry['created_at'],
+    );
+
+    final receivedAt =
+        inquiry['enquiry_submitted_at'] ?? inquiry['created_at'];
+
+    final receivedWarningColor = _receivedWarningColor(
+      receivedAt: receivedAt,
+      latestMessage: latestMessage,
+    );
+
+    final receivedWarningText = _receivedWarningText(
+      receivedAt: receivedAt,
+      latestMessage: latestMessage,
     );
 
     return Padding(
@@ -312,25 +498,93 @@ class _InboxPageState extends State<InboxPage> {
                       ),
                     ),
                   ),
-                  if (lastContact.isNotEmpty)
-                    Text(
-                      lastContact,
-                      style: TextStyle(
-                        fontSize: 12,
-                        color: Colors.grey.shade600,
+                  Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      if (lastContact.isNotEmpty)
+                        Text(
+                          lastContact,
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: Colors.grey.shade600,
+                          ),
+                        ),
+                      IconButton(
+                        tooltip: 'Delete enquiry',
+                        icon: const Icon(Icons.delete_outline, size: 20),
+                        color: Colors.red,
+                        onPressed: () {
+                          deleteInquiry(inquiry['id']);
+                        },
                       ),
-                    ),
+                    ],
+                  ),
                 ],
               ),
 
-              if (contact.isNotEmpty) ...[
+              if (person != null) ...[
                 const SizedBox(height: 3),
-                Text(
-                  contact,
-                  style: TextStyle(
-                    fontSize: 13,
-                    color: Colors.grey.shade700,
-                  ),
+
+                Row(
+                  children: [
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          if ((person['email_1st'] ?? person['email'] ?? '').toString().isNotEmpty)
+                            GestureDetector(
+                              onTap: () => _sendEmail(
+                                (person['email_1st'] ?? person['email']).toString(),
+                              ),
+                              child: Text(
+                                (person['email_1st'] ?? person['email']).toString(),
+                                style: TextStyle(
+                                  fontSize: 13,
+                                  color: Colors.blue,
+                                  decoration: TextDecoration.underline,
+                                ),
+                              ),
+                            ),
+
+                          if ((person['phone_1st'] ?? person['phone'] ?? '').toString().isNotEmpty)
+                            GestureDetector(
+                              onTap: () => _callNumber(
+                                (person['phone_1st'] ?? person['phone']).toString(),
+                              ),
+                              child: Text(
+                                (person['phone_1st'] ?? person['phone']).toString(),
+                                style: TextStyle(
+                                  fontSize: 13,
+                                  color: Colors.blue,
+                                  decoration: TextDecoration.underline,
+                                ),
+                              ),
+                            ),
+                        ],
+                      ),
+                    ),
+
+                    // 👇 ICON BUTTONS
+                    Column(
+                      children: [
+                        if ((person['phone_1st'] ?? person['phone'] ?? '').toString().isNotEmpty)
+                          IconButton(
+                            icon: const Icon(Icons.phone, size: 20),
+                            onPressed: () => _callNumber(
+                              (person['phone_1st'] ?? person['phone']).toString(),
+                            ),
+                          ),
+
+                        if ((person['email_1st'] ?? person['email'] ?? '').toString().isNotEmpty)
+                          IconButton(
+                            icon: const Icon(Icons.email, size: 20),
+                            onPressed: () => _sendEmail(
+                              (person['email_1st'] ?? person['email']).toString(),
+                            ),
+                          ),
+                      ],
+                    ),
+                  ],
                 ),
               ],
 
@@ -342,6 +596,7 @@ class _InboxPageState extends State<InboxPage> {
                 runSpacing: 6,
                 children: [
                   _miniChip(stageLabel, stageColor),
+                  _miniChip(receivedWarningText, receivedWarningColor),
                   if (depositPaid) _miniChip('Deposit', Colors.green),
                   if (allocated) _miniChip('Puppy linked', Colors.deepPurple),
                   if (inquiry['litter_id'] != null) _miniChip('Litter linked', Colors.teal),
@@ -395,6 +650,18 @@ class _InboxPageState extends State<InboxPage> {
       title: const Text('CRM Inbox'),
      /////
       actions: [
+        IconButton(
+          tooltip: 'Import Website Enquiry',
+          icon: const Icon(Icons.file_upload),
+          onPressed: () {
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (_) => const EmailImportPage(),
+              ),
+            ).then((_) => fetchInbox());
+          },
+        ),
         IconButton(
           tooltip: 'Reply Templates',
           icon: const Icon(Icons.text_snippet),
