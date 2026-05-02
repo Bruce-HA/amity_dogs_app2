@@ -2,6 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../services/app_user.dart';
 
+const dailyPrimary = Color(0xFFFF9800);
+const dailyPrimaryDark = Color(0xFFF57C00);
+
 final supabase = Supabase.instance.client;
 
 Future<void> showAddLogModal(
@@ -32,7 +35,11 @@ Future<void> showAddLogModal(
               children: [
                 const Text(
                   "Add Entry",
-                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600),
+                  style: TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.w600,
+                    color: dailyPrimary,
+                  ),
                 ),
 
                 const SizedBox(height: 12),
@@ -79,6 +86,10 @@ Future<void> showAddLogModal(
                 const SizedBox(height: 16),
 
                 ElevatedButton(
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: dailyPrimary,
+                    foregroundColor: Colors.white,
+                  ),
                   onPressed: isSaving
                       ? null
                       : () async {

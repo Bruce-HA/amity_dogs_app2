@@ -2,6 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'add_log_modal.dart';
 
+const dailyPrimary = Color(0xFFFF9800);
+const dailyPrimaryDark = Color(0xFFF57C00);
+
 final supabase = Supabase.instance.client;
 
 class LitterLogPage extends StatefulWidget {
@@ -105,9 +108,9 @@ class _LitterLogPageState extends State<LitterLogPage> {
           child: Container(
             padding: const EdgeInsets.symmetric(vertical: 10),
             decoration: BoxDecoration(
-              color: cat.color.withOpacity(0.1),
+              color: dailyPrimary.withOpacity(0.1),
               borderRadius: BorderRadius.circular(14),
-              border: Border.all(color: cat.color.withOpacity(0.3)),
+              border: Border.all(color: dailyPrimary.withOpacity(0.3)),
             ),
             child: Column(
               children: [
@@ -116,7 +119,7 @@ class _LitterLogPageState extends State<LitterLogPage> {
                 Text(cat.label,
                     style: TextStyle(
                         fontSize: 12,
-                        color: cat.color,
+                        color: dailyPrimary,
                         fontWeight: FontWeight.w600)),
               ],
             ),
@@ -210,7 +213,11 @@ class _LitterLogPageState extends State<LitterLogPage> {
     final litter = widget.litter;
 
     return Scaffold(
-      appBar: AppBar(title: Text(litter['litter_full_code'] ?? '')),
+      appBar: AppBar(
+        title: Text(litter['litter_full_code'] ?? ''),
+        backgroundColor: dailyPrimary,
+        foregroundColor: Colors.white,
+        ),
       body: Column(
         children: [
           Padding(

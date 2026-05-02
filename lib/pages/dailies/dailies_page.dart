@@ -3,6 +3,9 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'litter_log_page.dart';
 
+const dailyPrimary = Color(0xFFFF9800);
+const dailyPrimaryDark = Color(0xFFF57C00);
+
 final supabase = Supabase.instance.client;
 
 class DailiesPage extends StatefulWidget {
@@ -72,7 +75,11 @@ class _DailiesPageState extends State<DailiesPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Daily')),
+      appBar: AppBar(
+        title: const Text('Daily'),
+        backgroundColor: dailyPrimary,
+        foregroundColor: Colors.white,
+      ),
       body: loading
           ? const Center(child: CircularProgressIndicator())
           : ListView.builder(
@@ -80,8 +87,24 @@ class _DailiesPageState extends State<DailiesPage> {
               itemBuilder: (context, index) {
                 final litter = litters[index];
 
-                return Card(
+                return Container(
                   margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      colors: [
+                        dailyPrimary.withOpacity(0.9),
+                        dailyPrimaryDark,
+                      ],
+                    ),
+                    borderRadius: BorderRadius.circular(16),
+                    boxShadow: [
+                      BoxShadow(
+                        color: dailyPrimary.withOpacity(0.25),
+                        blurRadius: 10,
+                        offset: const Offset(0, 6),
+                      ),
+                    ],
+                  ),
                   child: ListTile(
                     contentPadding: const EdgeInsets.all(12),
 
@@ -98,21 +121,28 @@ class _DailiesPageState extends State<DailiesPage> {
                         : Container(
                             width: 50,
                             height: 50,
-                            color: Colors.grey.shade300,
+                            decoration: BoxDecoration(
+                              color: Colors.white24,
+                              borderRadius: BorderRadius.circular(8),
+                            ),
                           ),
 
                     title: Text(
                       litter['short_litter_name'] ??
                           litter['litter_full_code'] ??
                           'Unnamed Litter',
-                      style: const TextStyle(fontWeight: FontWeight.bold),
+                      style: const TextStyle(
+                        fontWeight: FontWeight.bold,
+                        color: Colors.white,
+                      ),
                     ),
 
                     subtitle: Text(
                       "${litter['dam_ala']} × ${litter['sire_ala']}",
+                      style: const TextStyle(color: Colors.white70),
                     ),
 
-                    trailing: const Icon(Icons.chevron_right),
+                    trailing: const Icon(Icons.chevron_right, color: Colors.white),
 
                     onTap: () {
                       Navigator.push(

@@ -469,18 +469,27 @@ class _DashboardTileState extends State<_DashboardTile> {
                 ),
               ),
               const SizedBox(height: 10),
-              const Spacer(),
-              Text(
-                widget.title,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: TextStyle(
-                  color: textColour,
-                  fontSize: 18,
-                  fontWeight: FontWeight.w800,
+
+              Expanded(
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.end,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      widget.title,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        color: textColour,
+                        fontSize: 18,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+
+                    const SizedBox(height: 6), // 👈 pulls text up from bottom
+                  ],
                 ),
               ),
-              const SizedBox(height: 4),
               Padding(
                 padding: const EdgeInsets.only(right: 6),
                 child: Text(
