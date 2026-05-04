@@ -102,12 +102,26 @@ class _DogPhotosTabState extends State<DogPhotosTab> {
 
     if (picked == null) return;
 
-    final file = File(picked.path);
+    try {
+      final file = File(picked.path);
 
-    await uploadPhoto(file);
+      await uploadPhoto(file);
+      await loadPhotos();
 
-    // refresh grid after upload
-    loadPhotos();
+      if (!mounted) return;
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Photo uploaded')),
+      );
+    } catch (e) {
+      debugPrint('Photo upload failed: $e');
+
+      if (!mounted) return;
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Photo upload failed: $e')),
+      );
+    }
   }
 
 

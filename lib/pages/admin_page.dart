@@ -10,6 +10,7 @@ import 'admin/admin_data_tools_page.dart';
 import '../services/app_settings.dart';
 import 'admin/remove_dna_page.dart';
 import 'admin/company_profile_page.dart';
+import 'admin/historical_wpforms_import_page.dart';
 
 class AdminPage extends StatelessWidget {
   const AdminPage({super.key});
@@ -204,6 +205,22 @@ Driver: ${AppUser.isDriver}
                 );
               },
             ),
+            const SizedBox(height: 12),
+
+              _card(
+                icon: Icons.history,
+                iconColor: Colors.orange,
+                title: 'Historical WPForms Import',
+                subtitle: 'Import old website enquiries from Excel and flag as historical',
+                onTap: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => const HistoricalWpFormsImportPage(),
+                    ),
+                  );
+                },
+              ),
           ],
         ),
       ),

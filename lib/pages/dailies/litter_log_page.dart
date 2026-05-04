@@ -108,19 +108,22 @@ class _LitterLogPageState extends State<LitterLogPage> {
           child: Container(
             padding: const EdgeInsets.symmetric(vertical: 10),
             decoration: BoxDecoration(
-              color: dailyPrimary.withOpacity(0.1),
+              color: Colors.white,   // 👈 cleaner contrast
               borderRadius: BorderRadius.circular(14),
-              border: Border.all(color: dailyPrimary.withOpacity(0.3)),
+              border: Border.all(color: Colors.grey.shade300),
             ),
             child: Column(
               children: [
-                Icon(cat.icon, color: cat.color, size: 20),
+                Icon(cat.icon, color: cat.color, size: 22),
                 const SizedBox(height: 4),
-                Text(cat.label,
-                    style: TextStyle(
-                        fontSize: 12,
-                        color: dailyPrimary,
-                        fontWeight: FontWeight.w600)),
+                Text(
+                  cat.label,
+                  style: const TextStyle(
+                    fontSize: 17,
+                    color: Colors.black87,
+                    fontWeight: FontWeight.w800, // 👈 slightly bolder
+                  ),
+                ),
               ],
             ),
           ),
@@ -179,16 +182,28 @@ class _LitterLogPageState extends State<LitterLogPage> {
           child: Container(
             padding: const EdgeInsets.symmetric(vertical: 10),
             decoration: BoxDecoration(
-              color: Colors.grey.shade200,
-              borderRadius: BorderRadius.circular(14),
-            ),
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(14),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(0.05),
+                blurRadius: 6,
+                offset: const Offset(0, 3),
+              ),
+            ],
+          ),
             child: Column(
               children: const [
                 Icon(Icons.filter_list, size: 20),
                 SizedBox(height: 4),
-                Text('Filter',
-                    style:
-                        TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
+               const Text(
+                'Filter',
+                style: TextStyle(
+                  fontSize: 17,
+                  fontWeight: FontWeight.w800,
+                  color: Colors.black87,
+                ),
+              ),
               ],
             ),
           ),

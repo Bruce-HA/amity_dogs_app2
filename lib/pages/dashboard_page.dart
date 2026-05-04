@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
-
+import 'package:flutter/services.dart';
 import 'crm/inbox_page.dart';
 import 'dogs_page.dart';
 import 'people_page.dart';
@@ -11,6 +11,8 @@ import 'dailies/dailies_page.dart';
 import 'flow/flow_dashboard_page.dart';
 import 'admin_page.dart';
 import 'tools_page.dart';
+import 'crm/crm_dashboard_page.dart';
+import 'dart:async';
 
 class DashboardPage extends StatefulWidget {
   const DashboardPage({super.key});
@@ -19,9 +21,26 @@ class DashboardPage extends StatefulWidget {
   State<DashboardPage> createState() => _DashboardPageState();
 }
 
-class _DashboardPageState extends State<DashboardPage> {
+class _DashboardPageState extends State<DashboardPage>
+    with SingleTickerProviderStateMixin {
   final supabase = Supabase.instance.client;
+  late final AnimationController _pulseController;
+  late final Animation<Color?> _crmColourAnimation;
 
+  Timer? _crmQueueTimer;
+  int pendingImportCount = 0;
+
+ // late AnimationController _pulseController;
+ // late Animation<Color?> _colorAnimation;
+
+//  int pendingImportCount = 0;
+
+  @override
+  void dispose() {
+    _crmQueueTimer?.cancel();
+    _pulseController.dispose();
+    super.dispose();
+  }
   Map<String, dynamic>? company;
   String? userName;
   bool loading = true;
@@ -29,7 +48,57 @@ class _DashboardPageState extends State<DashboardPage> {
   @override
   void initState() {
     super.initState();
+
+    _pulseController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 900),
+    );
+
+    _crmColourAnimation = ColorTween(
+      begin: Colors.teal,
+      end: Colors.redAccent,
+    ).animate(_pulseController);
+
     loadCompanyProfile();
+    loadPendingImportCount();
+
+    _crmQueueTimer = Timer.periodic(
+      const Duration(minutes: 1),
+      (_) => loadPendingImportCount(),
+    );
+  }
+
+  Future<void> loadPendingImportCount() async {
+    try {
+      final data = await supabase
+          .from('crm_email_import_log')
+          .select('id')
+          .eq('import_status', 'pending');
+
+      if (!mounted) return;
+
+      final count = data.length;
+      final wasZero = pendingImportCount == 0;
+
+      setState(() {
+        pendingImportCount = count;
+      });
+
+      if (count > 0) {
+        if (!_pulseController.isAnimating) {
+          _pulseController.repeat(reverse: true);
+        }
+
+        if (wasZero) {
+          HapticFeedback.lightImpact();
+        }
+      } else {
+        _pulseController.stop();
+        _pulseController.reset();
+      }
+    } catch (e) {
+      debugPrint('CRM pending queue count error: $e');
+    }
   }
 
   Future<void> loadCompanyProfile() async {
@@ -40,6 +109,7 @@ class _DashboardPageState extends State<DashboardPage> {
         setState(() => loading = false);
         return;
       }
+   
 
       try {
         final appUser = await supabase
@@ -135,88 +205,119 @@ class _DashboardPageState extends State<DashboardPage> {
                       userName: userName,
                     ),
                   ),
+
                   SliverPadding(
                     padding: const EdgeInsets.all(16),
-                    sliver: SliverGrid.count(
-                      crossAxisCount: 2,
-                      crossAxisSpacing: 14,
-                      mainAxisSpacing: 14,
-                      childAspectRatio: 0.95,
-                      children: [
-                        dashboardTile(
-                          icon: Icons.pets,
-                          title: 'Dogs',
-                          subtitle: 'Profiles & breeding dogs',
-                          page: const DogsPage(),
-                          colour: primary,
-                        ),
-                        dashboardTile(
-                          icon: Icons.route,
-                          title: 'The Flow',
-                          subtitle: 'Breeding workflow',
-                          page: const FlowDashboardPage(),
-                          colour: accent,
-                        ),
-                        dashboardTile(
-                          icon: Icons.mark_email_unread,
-                          title: 'CRM Inbox',
-                          subtitle: 'Sales enquiries',
-                          page: const InboxPage(),
-                          colour: Colors.teal,
-                        ),
-                        dashboardTile(
-                          icon: Icons.people,
-                          title: 'People',
-                          subtitle: 'Owners & breeders',
-                          page: const PeoplePage(),
-                          colour: Colors.indigo,
-                        ),
-                        dashboardTile(
-                          icon: Icons.event_note,
-                          title: 'Daily',
-                          subtitle: 'Notes & records',
-                          page: DailiesPage(),
-                          colour: Colors.orange,
-                        ),
-                        dashboardTile(
-                          icon: Icons.calendar_month,
-                          title: 'Calendar',
-                          subtitle: 'Dates & reminders',
-                          page: const CalendarPage(),
-                          colour: Colors.blue,
-                        ),
-                        dashboardTile(
-                          icon: Icons.directions_car,
-                          title: 'Vehicle Log',
-                          subtitle: 'Trips & expenses',
-                          page: const VehicleLogPage(),
-                          colour: Colors.green,
-                        ),
-                        dashboardTile(
-                          icon: Icons.bar_chart,
-                          title: 'Reports',
-                          subtitle: 'Breeding reports',
-                          page: const ReportsPage(),
-                          colour: secondary,
-                          darkText: true,
-                        ),
-                        dashboardTile(
-                          icon: Icons.admin_panel_settings,
-                          title: 'Admin',
-                          subtitle: 'Settings & profile',
-                          page: const AdminPage(),
-                          colour: Colors.deepPurple,
-                        ),
-                        dashboardTile(
-                          icon: Icons.build,
-                          title: 'Tools',
-                          subtitle: 'Utilities',
-                          page: const ToolsPage(),
-                          colour: Colors.blueGrey,
-                        ),
-                      ],
+                    sliver: SliverGrid(
+                      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                        crossAxisCount: 2,
+                        crossAxisSpacing: 14,
+                        mainAxisSpacing: 14,
+                        childAspectRatio: 0.95,
+                      ),
+                      delegate: SliverChildListDelegate(
+                        [
+                          dashboardTile(
+                            icon: Icons.pets,
+                            title: 'Dogs',
+                            page: const DogsPage(),
+                            colour: primary,
+                          ),
+                          dashboardTile(
+                            icon: Icons.route,
+                            title: 'The Flow',
+                            page: const FlowDashboardPage(),
+                            colour: accent,
+                          ),
+
+                     /*     
+                          AnimatedBuilder(
+                            animation: _pulseController,
+                            builder: (context, child) {
+                              final color = pendingImportCount > 0
+                                  ? _colorAnimation.value
+                                  : Colors.teal;
+
+                              return dashboardTile(
+                                icon: Icons.hub,
+                                title: pendingImportCount > 0
+                                    ? 'CRM Hub\n$pendingImportCount waiting'
+                                    : 'CRM Hub',
+                                page: const CrmDashboardPage(),
+                                colour: color ?? Colors.teal,
+                              );
+                            },
+                           
+                          ),
+                          dashboardTile(
+                            icon: Icons.people,
+                            title: 'People',
+                            page: const PeoplePage(),
+                            colour: Colors.indigo,
+                          ),
+                     */     
+/// add old tile back in 
+                          AnimatedBuilder(
+                            animation: _pulseController,
+                            builder: (context, child) {
+                              final colour = pendingImportCount > 0
+                                  ? (_crmColourAnimation.value ?? Colors.teal)
+                                  : Colors.teal;
+
+                              return dashboardTile(
+                                icon: Icons.hub,
+                                title: pendingImportCount > 0
+                                    ? 'CRM Hub\n$pendingImportCount waiting'
+                                    : 'CRM Hub',
+                                page: const CrmDashboardPage(),
+                                colour: colour,
+                              );
+                            },
+                          ),
+
+
+                          dashboardTile(
+                            icon: Icons.event_note,
+                            title: 'Daily',
+                            page: const DailiesPage(),
+                            colour: Colors.orange,
+                          ),
+                          dashboardTile(
+                            icon: Icons.calendar_month,
+                            title: 'Calendar',
+                            page: const CalendarPage(),
+                            colour: Colors.blue,
+                          ),
+                          dashboardTile(
+                            icon: Icons.directions_car,
+                            title: 'Vehicle Log',
+                            page: const VehicleLogPage(),
+                            colour: Colors.green,
+                          ),
+                          dashboardTile(
+                            icon: Icons.bar_chart,
+                            title: 'Reports',
+                            page: const ReportsPage(),
+                            colour: secondary,
+                            darkText: true,
+                          ),
+                          dashboardTile(
+                            icon: Icons.admin_panel_settings,
+                            title: 'Admin',
+                            page: const AdminPage(),
+                            colour: Colors.deepPurple,
+                          ),
+                          dashboardTile(
+                            icon: Icons.build,
+                            title: 'Tools',
+                            page: const ToolsPage(),
+                            colour: Colors.blueGrey,
+                          ),
+                        ],
+                      ),
                     ),
                   ),
+
                   SliverToBoxAdapter(
                     child: Padding(
                       padding: const EdgeInsets.fromLTRB(16, 0, 16, 24),
@@ -350,163 +451,134 @@ class _DashboardPageState extends State<DashboardPage> {
           width: 2,
         ),
       ),
-      child: ClipOval(
-        child: url != null && url.isNotEmpty
-            ? Image.network(
-                url,
-                fit: BoxFit.cover,
-                errorBuilder: (_, __, ___) => Icon(
+        child: ClipOval(
+          child: url != null && url.isNotEmpty
+              ? Image.network(
+                  url,
+                  fit: BoxFit.cover,
+                  errorBuilder: (_, __, ___) => Icon(
+                    fallbackIcon,
+                    color: accentColour,
+                    size: 30,
+                  ),
+                )
+              : Icon(
                   fallbackIcon,
                   color: accentColour,
                   size: 30,
                 ),
-              )
-            : Icon(
-                fallbackIcon,
-                color: accentColour,
-                size: 30,
+        ),
+      );
+    }
+
+    Widget dashboardTile({
+      required IconData icon,
+      required String title,
+      required Widget page,
+      required Color colour,
+      bool darkText = false,
+    }) {
+      return _DashboardTile(
+        icon: icon,
+        title: title,
+        page: page,
+        colour: colour,
+        darkText: darkText,
+      );
+    }
+  }
+
+  class _DashboardTile extends StatefulWidget {
+    final IconData icon;
+    final String title;
+    final Widget page;
+    final Color colour;
+    final bool darkText;
+
+    const _DashboardTile({
+      required this.icon,
+      required this.title,
+      required this.page,
+      required this.colour,
+      required this.darkText,
+    });
+
+    @override
+    State<_DashboardTile> createState() => _DashboardTileState();
+  }
+
+  class _DashboardTileState extends State<_DashboardTile> {
+    bool pressed = false;
+
+    @override
+    Widget build(BuildContext context) {
+      final textColour = widget.darkText ? Colors.black87 : Colors.white;
+
+      return GestureDetector(
+        onTapDown: (_) => setState(() => pressed = true),
+        onTapCancel: () => setState(() => pressed = false),
+        onTapUp: (_) {
+          setState(() => pressed = false);
+
+          Navigator.push(
+            context,
+            MaterialPageRoute(builder: (_) => widget.page),
+          );
+        },
+        child: AnimatedScale(
+          scale: pressed ? 0.96 : 1.0,
+          duration: const Duration(milliseconds: 120),
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 160),
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                colors: [
+                  widget.colour.withOpacity(0.95),
+                  widget.colour,
+                ],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
               ),
-      ),
-    );
-  }
-
-  Widget dashboardTile({
-    required IconData icon,
-    required String title,
-    required String subtitle,
-    required Widget page,
-    required Color colour,
-    bool darkText = false,
-  }) {
-    return _DashboardTile(
-      icon: icon,
-      title: title,
-      subtitle: subtitle,
-      page: page,
-      colour: colour,
-      darkText: darkText,
-    );
-  }
-}
-
-class _DashboardTile extends StatefulWidget {
-  final IconData icon;
-  final String title;
-  final String subtitle;
-  final Widget page;
-  final Color colour;
-  final bool darkText;
-
-  const _DashboardTile({
-    required this.icon,
-    required this.title,
-    required this.subtitle,
-    required this.page,
-    required this.colour,
-    required this.darkText,
-  });
-
-  @override
-  State<_DashboardTile> createState() => _DashboardTileState();
-}
-
-class _DashboardTileState extends State<_DashboardTile> {
-  bool pressed = false;
-
-  @override
-  Widget build(BuildContext context) {
-    final textColour = widget.darkText ? Colors.black87 : Colors.white;
-
-    return GestureDetector(
-      onTapDown: (_) => setState(() => pressed = true),
-      onTapCancel: () => setState(() => pressed = false),
-      onTapUp: (_) {
-        setState(() => pressed = false);
-
-        Navigator.push(
-          context,
-          MaterialPageRoute(builder: (_) => widget.page),
-        );
-      },
-      child: AnimatedScale(
-        scale: pressed ? 0.96 : 1.0,
-        duration: const Duration(milliseconds: 120),
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 160),
-          padding: const EdgeInsets.all(16),
-          decoration: BoxDecoration(
-            gradient: LinearGradient(
-              colors: [
-                widget.colour.withOpacity(0.95),
-                widget.colour,
+              borderRadius: BorderRadius.circular(24),
+              boxShadow: [
+                BoxShadow(
+                  color: widget.colour.withOpacity(pressed ? 0.38 : 0.24),
+                  blurRadius: pressed ? 18 : 12,
+                  offset: Offset(0, pressed ? 4 : 7),
+                ),
               ],
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
             ),
-            borderRadius: BorderRadius.circular(24),
-            boxShadow: [
-              BoxShadow(
-                color: widget.colour.withOpacity(pressed ? 0.38 : 0.24),
-                blurRadius: pressed ? 18 : 12,
-                offset: Offset(0, pressed ? 4 : 7),
-              ),
-            ],
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Container(
-                width: 54,
-                height: 54,
-                decoration: BoxDecoration(
-                  color: Colors.white.withOpacity(0.22),
-                  borderRadius: BorderRadius.circular(18),
-                ),
-                child: Icon(
-                  widget.icon,
-                  size: 34,
-                  color: textColour,
-                ),
-              ),
-              const SizedBox(height: 10),
+            child: Column(
+    mainAxisAlignment: MainAxisAlignment.center,
+    crossAxisAlignment: CrossAxisAlignment.center,
+    children: [
+      Container(
+        padding: const EdgeInsets.all(18),
+        decoration: BoxDecoration(
+          color: Colors.white.withOpacity(0.18),
+          borderRadius: BorderRadius.circular(20),
+        ),
+        child: Icon(
+          widget.icon,
+          size: 44, // 👈 slightly larger
+          color: Colors.white,
+        ),
+      ),
 
-              Expanded(
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.end,
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      widget.title,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: TextStyle(
-                        color: textColour,
-                        fontSize: 18,
-                        fontWeight: FontWeight.w800,
-                      ),
-                    ),
+      const SizedBox(height: 16),
 
-                    const SizedBox(height: 6), // 👈 pulls text up from bottom
-                  ],
-                ),
-              ),
-              Padding(
-                padding: const EdgeInsets.only(right: 6),
-                child: Text(
-                  widget.subtitle,
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                  softWrap: true,
-                  style: TextStyle(
-                    color: textColour.withOpacity(0.85),
-                    fontSize: 12,
-                    height: 1.2,
-                    fontWeight: FontWeight.w500,
-                  ),
-                ),
-              ),
-            ],
-          ),
+      Text(
+        widget.title,
+        textAlign: TextAlign.center,
+        style: TextStyle(
+          fontSize: 18,
+          fontWeight: FontWeight.w800,
+          color: textColour,
+        ),
+      ),
+    ],
+  ),
         ),
       ),
     );

@@ -241,7 +241,30 @@ class _InboxPageState extends State<InboxPage> {
       return null;
     }
   }
+//
+  String _formatDateOnly(dynamic value) {
+    if (value == null) return '';
 
+    try {
+      final date = DateTime.parse(value.toString()).toLocal();
+      return DateFormat('dd MMM yyyy').format(date);
+    } catch (_) {
+      return '';
+    }
+  }
+
+  String _formatTimeOnly(dynamic value) {
+    if (value == null) return '';
+
+    try {
+      final date = DateTime.parse(value.toString()).toLocal();
+      return DateFormat('h:mm a').format(date);
+    } catch (_) {
+      return '';
+    }
+  }
+
+///
   String _timeAgo(dynamic value) {
     final date = _toDateTime(value);
     if (date == null) return '';
@@ -434,11 +457,13 @@ class _InboxPageState extends State<InboxPage> {
             'No message yet')
         .toString();
 
-    final lastContact = _formatDate(
+    final lastContactValue =
       latestMessage?['created_at'] ??
-          inquiry['enquiry_submitted_at'] ??
-          inquiry['created_at'],
-    );
+      inquiry['enquiry_submitted_at'] ??
+      inquiry['created_at'];
+
+  final lastContactDate = _formatDateOnly(lastContactValue);
+  final lastContactTime = _formatTimeOnly(lastContactValue);
 
     final receivedAt =
         inquiry['enquiry_submitted_at'] ?? inquiry['created_at'];
@@ -501,13 +526,27 @@ class _InboxPageState extends State<InboxPage> {
                   Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      if (lastContact.isNotEmpty)
-                        Text(
-                          lastContact,
-                          style: TextStyle(
-                            fontSize: 12,
-                            color: Colors.grey.shade600,
-                          ),
+                      if (lastContactDate.isNotEmpty || lastContactTime.isNotEmpty)
+                        Column(
+                          crossAxisAlignment: CrossAxisAlignment.end,
+                          children: [
+                            Text(
+                              lastContactDate,
+                              style: TextStyle(
+                                fontSize: 13,
+                                fontWeight: FontWeight.w700,
+                                color: Colors.grey.shade700,
+                              ),
+                            ),
+                            Text(
+                              lastContactTime,
+                              style: TextStyle(
+                                fontSize: 13,
+                                fontWeight: FontWeight.w700,
+                                color: Colors.grey.shade700,
+                              ),
+                            ),
+                          ],
                         ),
                       IconButton(
                         tooltip: 'Delete enquiry',
@@ -539,7 +578,7 @@ class _InboxPageState extends State<InboxPage> {
                               child: Text(
                                 (person['email_1st'] ?? person['email']).toString(),
                                 style: TextStyle(
-                                  fontSize: 13,
+                                  fontSize: 15,
                                   color: Colors.blue,
                                   decoration: TextDecoration.underline,
                                 ),
@@ -554,7 +593,7 @@ class _InboxPageState extends State<InboxPage> {
                               child: Text(
                                 (person['phone_1st'] ?? person['phone']).toString(),
                                 style: TextStyle(
-                                  fontSize: 13,
+                                  fontSize: 15,
                                   color: Colors.blue,
                                   decoration: TextDecoration.underline,
                                 ),
@@ -566,24 +605,24 @@ class _InboxPageState extends State<InboxPage> {
 
                     // 👇 ICON BUTTONS
                     Column(
-                      children: [
-                        if ((person['phone_1st'] ?? person['phone'] ?? '').toString().isNotEmpty)
-                          IconButton(
-                            icon: const Icon(Icons.phone, size: 20),
-                            onPressed: () => _callNumber(
-                              (person['phone_1st'] ?? person['phone']).toString(),
-                            ),
+                    children: [
+                      if ((person['email_1st'] ?? person['email'] ?? '').toString().isNotEmpty)
+                        IconButton(
+                          icon: const Icon(Icons.email, size: 20),
+                          onPressed: () => _sendEmail(
+                            (person['email_1st'] ?? person['email']).toString(),
                           ),
+                        ),
 
-                        if ((person['email_1st'] ?? person['email'] ?? '').toString().isNotEmpty)
-                          IconButton(
-                            icon: const Icon(Icons.email, size: 20),
-                            onPressed: () => _sendEmail(
-                              (person['email_1st'] ?? person['email']).toString(),
-                            ),
+                      if ((person['phone_1st'] ?? person['phone'] ?? '').toString().isNotEmpty)
+                        IconButton(
+                          icon: const Icon(Icons.phone, size: 20),
+                          onPressed: () => _callNumber(
+                            (person['phone_1st'] ?? person['phone']).toString(),
                           ),
-                      ],
-                    ),
+                        ),
+                    ],
+                  ),
                   ],
                 ),
               ],

@@ -132,7 +132,7 @@ class _EnquiryDetailPageState extends State<EnquiryDetailPage> {
     if (value == null) return '—';
 
     try {
-      final date = DateTime.parse(value.toString()).toLocal();
+      final date = _parseSupabaseTime(value);
 
       const months = [
         'Jan','Feb','Mar','Apr','May','Jun',
@@ -151,12 +151,25 @@ class _EnquiryDetailPageState extends State<EnquiryDetailPage> {
       return value.toString();
     }
   }
+  DateTime _parseSupabaseTime(dynamic value) {
+    final raw = value.toString();
+
+    final hasTimezone =
+        raw.endsWith('Z') ||
+        raw.contains('+') ||
+        RegExp(r'-\d\d:\d\d$').hasMatch(raw);
+
+    final fixed = hasTimezone ? raw : '${raw}Z';
+
+    return DateTime.parse(fixed).toLocal();
+  }
+
 
   DateTime? _toDateTime(dynamic value) {
     if (value == null) return null;
 
     try {
-      return DateTime.parse(value.toString()).toLocal();
+      return _parseSupabaseTime(value);
     } catch (_) {
       return null;
     }
