@@ -3,6 +3,7 @@ import 'package:intl/intl.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'conversation_page.dart';
+import '../dog_details_page.dart';
 
 class EnquiryDetailPage extends StatefulWidget {
   final String inquiryId;
@@ -27,8 +28,13 @@ class _EnquiryDetailPageState extends State<EnquiryDetailPage> {
   Map<String, dynamic>? puppy;
   List<Map<String, dynamic>> communications = [];
   List<Map<String, dynamic>> inquiryNotes = [];
+  List<Map<String, dynamic>> activeLitters = [];
+  String? selectedLitterId;
+  List<Map<String, dynamic>> litterPuppies = [];
+  String? selectedPuppyDogId;
 
   final TextEditingController noteController = TextEditingController();
+  final TextEditingController litterNameController = TextEditingController();
 
   final List<String> stages = const [
     'new',
@@ -43,16 +49,19 @@ class _EnquiryDetailPageState extends State<EnquiryDetailPage> {
   @override
   void initState() {
     super.initState();
-    fetchEnquiry();
+    fetchEnquiry();        // loads inquiry/person/page content
+    fetchActiveLitters();  // loads litter dropdown
   }
 
   @override
   void dispose() {
     noteController.dispose();
+    litterNameController.dispose();
     super.dispose();
   }
 
   Future<void> fetchEnquiry() async {
+    print('Fetching enquiry...');
     setState(() => isLoading = true);
 
     try {
@@ -106,6 +115,15 @@ class _EnquiryDetailPageState extends State<EnquiryDetailPage> {
       }
 
       noteController.text = (inquiryMap['notes'] ?? '').toString();
+
+      litterNameController.text =
+      (inquiryMap['preferred_litter_name'] ?? '').toString();
+      selectedLitterId = inquiryMap['litter_id']?.toString();
+      selectedPuppyDogId = inquiryMap['puppy_dog_id']?.toString();
+
+      if (selectedLitterId != null) {
+        await fetchPuppiesForLitter(selectedLitterId);
+      }
 
       setState(() {
         inquiry = inquiryMap;
@@ -226,6 +244,45 @@ class _EnquiryDetailPageState extends State<EnquiryDetailPage> {
     if (diff.inHours < 24) return '${diff.inHours}h ${diff.inMinutes % 60}m';
 
     return '${diff.inDays}d ${diff.inHours % 24}h';
+  }
+
+  Future<void> saveLitterName() async {
+    if (inquiry == null) return;
+
+    setState(() => isSaving = true);
+
+    try {
+      await supabase.from('inquiries').update({
+        'preferred_litter_name': litterNameController.text.trim().isEmpty
+          ? null
+          : litterNameController.text.trim(),
+      'litter_id': selectedLitterId,
+        'updated_at': DateTime.now().toIso8601String(),
+      }
+        );
+      // 👇 Assign puppy to owner (if selected)
+          if (selectedPuppyDogId != null && inquiry?['person_id'] != null) {
+            await supabase.from('dogs').update({
+              'owner_person_id': inquiry!['person_id'],
+            }).eq('id', selectedPuppyDogId!);
+          }
+
+      await fetchEnquiry();
+
+      if (!mounted) return;
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Litter name saved')),
+      );
+    } catch (e) {
+      if (!mounted) return;
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Could not save litter name: $e')),
+      );
+    }
+
+    if (mounted) setState(() => isSaving = false);
   }
 
   Future<void> updateStage(String newStage) async {
@@ -462,6 +519,85 @@ class _EnquiryDetailPageState extends State<EnquiryDetailPage> {
     }
   }
 
+  Future<void> saveAllocationAuto() async {
+    if (inquiry == null) return;
+
+    try {
+      await supabase.from('inquiries').update({
+        'preferred_litter_name': litterNameController.text.trim().isEmpty
+            ? null
+            : litterNameController.text.trim(),
+        'litter_id': selectedLitterId,
+        'puppy_dog_id': selectedPuppyDogId,
+        'updated_at': DateTime.now().toIso8601String(),
+      }).eq('id', widget.inquiryId);
+    } catch (e) {
+      debugPrint('Auto save error: $e');
+    }
+  }
+ Future<void> fetchActiveLitters() async {
+    print('Fetching litters...');
+
+    try {
+      final result = await supabase
+          .from('litters')
+          .select('id, ala_litter_number, short_litter_name, status, is_deleted')
+          .order('ala_litter_number', ascending: false);
+
+      final cleanLitters = (result as List)
+          .where((l) {
+            final isDeleted = l['is_deleted'] == true;
+            final ala = (l['ala_litter_number'] ?? '').toString().trim();
+            final shortName = (l['short_litter_name'] ?? '').toString().trim();
+
+            return !isDeleted && ala.isNotEmpty && shortName.isNotEmpty;
+          })
+          .map((l) {
+            return {
+              'id': l['id'].toString(),
+              'display_name': '${l['ala_litter_number']} - ${l['short_litter_name']}',
+            };
+          })
+          .toList();
+
+      if (!mounted) return;
+
+      setState(() {
+        activeLitters = cleanLitters;
+      });
+
+      print('Litters loaded: ${activeLitters.length}');
+    } catch (e) {
+      print('fetchActiveLitters error: $e');
+    }
+  }
+  Future<void> fetchPuppiesForLitter(String? litterId) async {
+    if (litterId == null) {
+      setState(() {
+        litterPuppies = [];
+        selectedPuppyDogId = null;
+      });
+      return;
+    }
+
+    try {
+      final result = await supabase
+          .from('dogs')
+          .select('id, dog_name, sex, collar_colour, dog_ala, owner_person_id')
+          .eq('litter_id', litterId)
+          .order('dog_ala', ascending: true);
+
+      if (!mounted) return;
+
+      setState(() {
+        litterPuppies = List<Map<String, dynamic>>.from(result);
+      });
+    } catch (e) {
+      debugPrint('fetchPuppiesForLitter error: $e');
+    }
+  }
+
+
   String _personName() {
     if (person == null) return 'Unknown buyer';
 
@@ -612,6 +748,7 @@ class _EnquiryDetailPageState extends State<EnquiryDetailPage> {
   }
 
   Widget _buildHeader() {
+    print('BUILD RUNNING');
     final status = (inquiry?['status'] ?? 'new').toString();
     final color = _stageColor(status);
 
@@ -698,6 +835,195 @@ class _EnquiryDetailPageState extends State<EnquiryDetailPage> {
         runSpacing: 8,
         children: stages.map(_stageChip).toList(),
       ),
+    );
+  }
+  Widget _buildLitterNameCard() {
+    return _sectionCard(
+      title: 'Preferred / Allocated Litter',
+      icon: Icons.pets,
+      child: Row(
+        children: [
+          Expanded(
+            child: DropdownButtonFormField<String>(
+              value: activeLitters.any((l) => l['id'] == selectedLitterId)
+                  ? selectedLitterId
+                  : null,
+              decoration: const InputDecoration(
+                labelText: 'Preferred / Allocated Litter',
+                border: OutlineInputBorder(),
+              ),
+              items: [
+                const DropdownMenuItem<String>(
+                  value: '',
+                  child: Text('— None —'),
+                ),
+                ...activeLitters.map((litter) {
+                  return DropdownMenuItem<String>(
+                    value: litter['id'].toString(),
+                    child: Text(litter['display_name'].toString()),
+                  );
+                }).toList(),
+              ],
+              onChanged: (value) async {
+                if (value == null || value.isEmpty) {
+                  setState(() {
+                    selectedLitterId = null;
+                    selectedPuppyDogId = null;
+                    litterPuppies = [];
+                    litterNameController.clear();
+                  });
+
+                  await saveAllocationAuto();
+                  return;
+                }
+
+                final selected = activeLitters.firstWhere(
+                  (l) => l['id'].toString() == value,
+                );
+
+                setState(() {
+                  selectedLitterId = value;
+                  selectedPuppyDogId = null;
+                  litterNameController.text =
+                      selected['display_name'].toString();
+                });
+
+                await fetchPuppiesForLitter(value);
+                await saveAllocationAuto(); // 👈 HERE
+              },
+            ),
+          ),
+          const SizedBox(width: 8),
+          ElevatedButton.icon(
+            onPressed: isSaving ? null : saveLitterName,
+            icon: const Icon(Icons.save),
+            label: const Text('Save'),
+          ),
+        ],
+      ),
+    );
+  }
+  Widget _buildAssignPuppyCard() {
+    if (selectedLitterId == null) {
+      return const SizedBox.shrink();
+    }
+
+    return _sectionCard(
+      title: 'Assign Puppy',
+      icon: Icons.cruelty_free,
+      child: litterPuppies.isEmpty
+        ? const Text('Pups Not Added Yet')
+        : Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Expanded(
+                    child: DropdownButtonFormField<String>(
+                      value: litterPuppies.any((p) => p['id'].toString() == selectedPuppyDogId)
+                          ? selectedPuppyDogId
+                          : null,
+                      decoration: const InputDecoration(
+                        labelText: 'Select puppy',
+                        border: OutlineInputBorder(),
+                      ),
+                      items: [
+                        const DropdownMenuItem<String>(
+                          value: '',
+                          child: Text('— None —'),
+                        ),
+                        ...litterPuppies.map((pup) {
+                          final label =
+                              (pup['collar_colour'] ?? 'No collar').toString();
+
+                          final alreadyOwned = pup['owner_person_id'] != null;
+
+                          return DropdownMenuItem<String>(
+                            value: pup['id'].toString(),
+                            child: Text(
+                              label,
+                              overflow: TextOverflow.ellipsis,
+                              style: TextStyle(
+                                decoration: alreadyOwned
+                                    ? TextDecoration.lineThrough
+                                    : TextDecoration.none,
+                              ),
+                            ),
+                          );
+                        }).toList(),
+                      ],
+                      onChanged: (value) async {
+                        final newValue =
+                            (value == null || value.isEmpty) ? null : value;
+
+                        setState(() {
+                          selectedPuppyDogId = newValue;
+                        });
+
+                        await saveAllocationAuto(); // 👈 HERE
+                      },
+                    ),
+                  ),
+                  const SizedBox(width: 4),
+                  IconButton(
+                    padding: EdgeInsets.zero,
+                    constraints: const BoxConstraints(
+                      minWidth: 32,
+                      minHeight: 32,
+                    ),
+                    icon: const Icon(Icons.pets),
+                    onPressed: selectedPuppyDogId == null
+                        ? null
+                        : () {
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (_) => DogDetailsPage(
+                                  dogId: selectedPuppyDogId!,
+                                ),
+                              ),
+                            );
+                          },
+                  ),
+                ],
+              ),
+
+              // 🐶 👇 THIS IS THE MAGIC PART (WRAPS NICELY)
+              if (selectedPuppyDogId != null)
+                Padding(
+                  padding: const EdgeInsets.only(top: 10),
+                  child: Builder(
+                    builder: (_) {
+                      final pup = litterPuppies.firstWhere(
+                        (p) => p['id'].toString() == selectedPuppyDogId,
+                        orElse: () => {},
+                      );
+
+                      if (pup.isEmpty) return const SizedBox();
+
+                      return Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            pup['dog_name'] ?? '',
+                            style: const TextStyle(
+                              fontWeight: FontWeight.bold,
+                              fontSize: 15,
+                            ),
+                          ),
+                          Text(
+                            '${pup['sex'] ?? ''} • ${pup['collar_colour'] ?? ''}',
+                            style: TextStyle(
+                              color: Colors.grey.shade600,
+                            ),
+                          ),
+                        ],
+                      );
+                    },
+                  ),
+                ),
+            ],
+          ),
     );
   }
 
@@ -1003,6 +1329,8 @@ class _EnquiryDetailPageState extends State<EnquiryDetailPage> {
                           _buildTimingCard(),   // 👈 ADD THIS
                           _buildBuyerCard(),
                           _buildStageCard(),
+                          _buildLitterNameCard(), // 👈 must be here
+                          _buildAssignPuppyCard(),
                           _buildSalesCard(),
                           _buildNotesCard(),
                           _buildMessagesCard(),

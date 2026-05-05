@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:uuid/uuid.dart';
+import 'template_picker_page.dart';
 
 class ConversationPage extends StatefulWidget {
   final String personId;
@@ -117,154 +118,33 @@ class _ConversationPageState extends State<ConversationPage> {
   }
 
   Future<void> openTemplatePicker() async {
-    try {
-      final templates = await supabase
-          .from('crm_reply_templates')
-          .select()
-          .eq('is_active', true)
-          .order('category', ascending: true)
-          .order('title', ascending: true);
+    final result = await Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => TemplatePickerPage(
+          person: person,
+          inquiry: inquiry,
+        ),
+      ),
+    );
 
-      if (!mounted) return;
+    if (result == null) return;
 
-      showModalBottomSheet(
-        context: context,
-        showDragHandle: true,
-        isScrollControlled: true,
-        builder: (context) {
-          if (templates.isEmpty) {
-            return const Padding(
-              padding: EdgeInsets.all(24),
-              child: Text('No active templates found.'),
-            );
-          }
+    final replace = result['replace'] == true;
+    final body = (result['body'] ?? '').toString();
 
-          return SizedBox(
-            height: MediaQuery.of(context).size.height * 0.75,
-            child: ListView.builder(
-              itemCount: templates.length,
-              itemBuilder: (context, index) {
-                final template = templates[index];
+    setState(() {
+      if (replace) {
+        _controller.text = body;
+      } else {
+        final current = _controller.text.trim();
+        _controller.text = current.isEmpty ? body : '$current\n\n$body';
+      }
 
-                final title = (template['title'] ?? '').toString();
-                final category = (template['category'] ?? '').toString();
-                final subject = (template['subject'] ?? '').toString();
-                final photoUrl = (template['photo_url'] ?? '').toString();
-
-                  var mergedBody = mergeTemplate(template['body'] ?? '');
-
-                  if (photoUrl.isNotEmpty) {
-                    mergedBody = '$mergedBody\n\nPhoto:\n$photoUrl';
-                  }
-
-                return Card(
-                  margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                  child: ExpansionTile(
-                    leading: const Icon(Icons.text_snippet),
-                    title: Text(
-                      title,
-                      style: const TextStyle(fontWeight: FontWeight.w700),
-                    ),
-                    subtitle: Text(
-                      category.isEmpty ? subject : '$category • $subject',
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                    childrenPadding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
-                    children: [
-                      Align(
-                        alignment: Alignment.centerLeft,
-                        child: Text(
-                          mergedBody,
-                          style: const TextStyle(fontSize: 14),
-                        ),
-                      ),
-                      const SizedBox(height: 12),
-
-                      Row(
-                        children: [
-                          Expanded(
-                            child: OutlinedButton.icon(
-                              icon: const Icon(Icons.add),
-                              label: const Text('Insert'),
-                              onPressed: () {
-                                setState(() {
-                                  final current = _controller.text.trim();
-
-                                  _controller.text = current.isEmpty
-                                      ? mergedBody
-                                      : '$current\n\n$mergedBody';
-
-                                  _controller.selection =
-                                      TextSelection.fromPosition(
-                                    TextPosition(offset: _controller.text.length),
-                                  );
-                                });
-
-                                Navigator.pop(context);
-                              },
-                            ),
-                          ),
-                          const SizedBox(width: 8),
-                          Expanded(
-                            child: OutlinedButton.icon(
-                              icon: const Icon(Icons.swap_horiz),
-                              label: const Text('Replace'),
-                              onPressed: () {
-                                setState(() {
-                                  _controller.text = mergedBody;
-                                  _controller.selection =
-                                      TextSelection.fromPosition(
-                                    TextPosition(offset: _controller.text.length),
-                                  );
-                                });
-
-                                Navigator.pop(context);
-                              },
-                            ),
-                          ),
-                        ],
-                      ),
-
-                      const SizedBox(height: 8),
-
-                      SizedBox(
-                        width: double.infinity,
-                        child: ElevatedButton.icon(
-                          icon: const Icon(Icons.send),
-                          label: const Text('Send Now'),
-                          onPressed: () async {
-                            Navigator.pop(context);
-
-                            setState(() {
-                              _controller.text = mergedBody;
-                            });
-
-                            await sendMessage(
-                              overrideSubject: subject.isEmpty
-                                  ? 'Reply from Amity Labradoodles'
-                                  : subject,
-                            );
-                          },
-                        ),
-                      ),
-                    ],
-                  ),
-                );
-              },
-            ),
-          );
-        },
+      _controller.selection = TextSelection.fromPosition(
+        TextPosition(offset: _controller.text.length),
       );
-    } catch (e) {
-      debugPrint('Template picker error: $e');
-
-      if (!mounted) return;
-
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Could not load templates: $e')),
-      );
-    }
+    });
   }
 
   Future<void> sendMessage({String? overrideSubject}) async {
@@ -371,6 +251,67 @@ class _ConversationPageState extends State<ConversationPage> {
     );
   }
 
+  Future<void> recordPhoneCall() async {
+    if (person == null) return;
+
+    final controller = TextEditingController();
+
+    final note = await showDialog<String>(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: const Text('Record Phone Call'),
+        content: TextField(
+          controller: controller,
+          maxLines: 5,
+          decoration: const InputDecoration(
+            hintText: 'Phone call notes...',
+            border: OutlineInputBorder(),
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton.icon(
+            icon: const Icon(Icons.phone),
+            label: const Text('Save Call'),
+            onPressed: () {
+              Navigator.pop(context, controller.text.trim());
+            },
+          ),
+        ],
+      ),
+    );
+
+    if (note == null || note.isEmpty) return;
+
+    try {
+      final user = supabase.auth.currentUser;
+
+      await supabase.from('communications').insert({
+        'people_id': widget.personId,
+        'channel': 'phone',
+        'direction': 'outbound',
+        'subject': 'Phoned',
+        'message_body': note,
+        'status': 'completed',
+        'created_at': DateTime.now().toIso8601String(),
+        'created_by': user?.id,
+      });
+
+      await fetchConversation();
+    } catch (e) {
+      debugPrint('Record phone call error: $e');
+
+      if (!mounted) return;
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Could not save phone call: $e')),
+      );
+    }
+  }
+
   Widget buildReplyBar() {
     return Container(
       padding: const EdgeInsets.all(8),
@@ -382,11 +323,6 @@ class _ConversationPageState extends State<ConversationPage> {
       ),
       child: Row(
         children: [
-          IconButton(
-            tooltip: 'Use Template',
-            icon: const Icon(Icons.text_snippet),
-            onPressed: openTemplatePicker,
-          ),
           Expanded(
             child: TextField(
               controller: _controller,
@@ -398,7 +334,27 @@ class _ConversationPageState extends State<ConversationPage> {
               ),
             ),
           ),
+
           const SizedBox(width: 8),
+
+          IconButton(
+            tooltip: 'Record phone call',
+            icon: const Icon(Icons.phone),
+            onPressed: recordPhoneCall,
+          ),
+
+          const SizedBox(width: 4),
+
+          // 👇 NEW TEMPLATE BUTTON
+          IconButton(
+            tooltip: 'Templates',
+            icon: const Icon(Icons.description_outlined),
+            onPressed: openTemplatePicker,
+          ),
+
+          const SizedBox(width: 4),
+
+          // 👇 SEND BUTTON (unchanged)
           IconButton(
             icon: isSending
                 ? const SizedBox(

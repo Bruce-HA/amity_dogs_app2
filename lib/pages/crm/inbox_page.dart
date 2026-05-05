@@ -21,6 +21,7 @@ class _InboxPageState extends State<InboxPage> {
   bool isLoading = true;
   String selectedFilter = 'All';
   String searchText = '';
+  String selectedLitterFilter = 'All Litters';
 
   final List<String> filters = const [
     'All',
@@ -125,6 +126,8 @@ class _InboxPageState extends State<InboxPage> {
     final rows = inboxRows.where((row) {
       final inquiry = row['inquiry'] as Map<String, dynamic>;
       final person = row['person'] as Map<String, dynamic>?;
+      final litterName =
+       (inquiry['preferred_litter_name'] ?? '').toString().trim();
 
       final status = (inquiry['status'] ?? '').toString().toLowerCase();
 
@@ -145,6 +148,13 @@ class _InboxPageState extends State<InboxPage> {
           !haystack.contains(searchText.trim().toLowerCase())) {
         return false;
       }
+      
+
+      if (selectedLitterFilter != 'All Litters' &&
+          litterName != selectedLitterFilter) {
+        return false;
+      }
+
 
       switch (selectedFilter) {
         case 'New':
@@ -191,6 +201,21 @@ class _InboxPageState extends State<InboxPage> {
     });
 
     return rows;
+  }
+
+  List<String> get litterFilters {
+    final names = inboxRows
+        .map((row) {
+          final inquiry = row['inquiry'] as Map<String, dynamic>;
+          return (inquiry['preferred_litter_name'] ?? '').toString().trim();
+        })
+        .where((name) => name.isNotEmpty)
+        .toSet()
+        .toList();
+
+    names.sort();
+
+    return ['All Litters', ...names];
   }
 
   String _personName(Map<String, dynamic>? person) {
@@ -408,9 +433,35 @@ class _InboxPageState extends State<InboxPage> {
 
     final status = (inquiry['status'] ?? 'new').toString();
 
+    final litterName =
+      (inquiry['preferred_litter_name'] ?? '').toString().trim();
+
     if (status.isEmpty) return 'New';
 
     return status[0].toUpperCase() + status.substring(1);
+  }
+  Widget _buildLitterFilterDropdown() {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(12, 0, 12, 8),
+      child: DropdownButtonFormField<String>(
+        value: selectedLitterFilter,
+        decoration: const InputDecoration(
+          labelText: 'Filter by litter',
+          border: OutlineInputBorder(),
+          isDense: true,
+        ),
+        items: litterFilters.map((name) {
+          return DropdownMenuItem(
+            value: name,
+            child: Text(name),
+          );
+        }).toList(),
+        onChanged: (value) {
+          if (value == null) return;
+          setState(() => selectedLitterFilter = value);
+        },
+      ),
+    );
   }
 
   Widget _buildFilterBar() {
@@ -751,6 +802,7 @@ class _InboxPageState extends State<InboxPage> {
           ),
 
           _buildFilterBar(),
+          _buildLitterFilterDropdown(),
 
           const SizedBox(height: 4),
 

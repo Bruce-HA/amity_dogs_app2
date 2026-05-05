@@ -2,6 +2,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../services/breeding_plan_service.dart';
+import 'dog_details_page.dart';
 
 class AddBreedingPlanPage extends StatefulWidget {
   final String femaleAla;

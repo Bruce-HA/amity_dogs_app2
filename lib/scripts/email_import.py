@@ -1,10 +1,35 @@
 import imaplib
 import email
 import requests
+import os
+
 from email.utils import parsedate_to_datetime
-from bs4 import BeautifulSoup
 from email.header import decode_header
 from datetime import datetime
+from bs4 import BeautifulSoup
+
+# =========================
+# RUN COUNTER (MUST BE BEFORE USE)
+# =========================
+
+RUN_COUNT_FILE = "/home/admin/operation-pi/EmailScripts/run_count.txt"
+
+def get_run_count():
+    if not os.path.exists(RUN_COUNT_FILE):
+        with open(RUN_COUNT_FILE, "w") as f:
+            f.write("1")
+        return 1
+
+    with open(RUN_COUNT_FILE, "r") as f:
+        count = int(f.read().strip())
+
+    count += 1
+
+    with open(RUN_COUNT_FILE, "w") as f:
+        f.write(str(count))
+
+    return count
+
 
 # =========================
 # CONFIG
@@ -15,8 +40,8 @@ EMAIL_USER = "crm@amity.pet"
 EMAIL_PASS = "Coco2027$&"
 
 SUPABASE_URL = "https://phkwizyrpfzoecugpshb.supabase.co"
-SUPABASE_SERVICE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InBoa3dpenlycGZ6b2VjdWdwc2hiIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc2OTM2NjI4MiwiZXhwIjoyMDg0OTQyMjgyfQ.XF9Mi_Pzp-F2AQflrFEbuftf1rqavZWsLUwRoS6XpHA"
-print("Starting email import...")
+SUPABASE_SERVICE_KEY = "YOUR_SERVICE_ROLE_KEY_HERE"  # <-- PUT YOUR KEY HERE
+
 
 # =========================
 # HELPERS
@@ -32,6 +57,7 @@ def html_to_text(html):
     lines = [line.strip() for line in text.splitlines() if line.strip()]
     return "\n".join(lines)
 
+
 # =========================
 # CONNECT EMAIL
 # =========================
@@ -42,6 +68,20 @@ mail.select("INBOX")
 
 print("Connected to email server")
 
+
+# =========================
+# RUN HEADER (NOW SAFE)
+# =========================
+
+run_number = get_run_count()
+
+print("\n==============================")
+print(f"🚀 Run #{run_number}")
+print(f"⏱ Time: {datetime.now()}")
+print("==============================")
+print("Starting email import...")
+
+
 # =========================
 # FETCH EMAILS
 # =========================
@@ -51,8 +91,16 @@ email_ids = messages[0].split()
 
 print(f"Found {len(email_ids)} emails")
 
+if len(email_ids) == 0:
+    print(f"[Run {run_number}] No new emails")
+
+
+# =========================
+# PROCESS EMAILS
+# =========================
+
 for i, num in enumerate(email_ids, start=1):
-    print(f"\nProcessing email {i} of {len(email_ids)}")
+    print(f"[Run {run_number}] Processing email {i}/{len(email_ids)}")
 
     status, msg_data = mail.fetch(num, "(RFC822)")
     raw_email = msg_data[0][1]
@@ -63,6 +111,7 @@ for i, num in enumerate(email_ids, start=1):
     from_email = msg.get("From")
     subject = msg.get("Subject")
 
+    # Decode subject
     if subject:
         subject, encoding = decode_header(subject)[0]
         if isinstance(subject, bytes):
@@ -70,6 +119,7 @@ for i, num in enumerate(email_ids, start=1):
     else:
         subject = "No subject"
 
+    # Clean sender email
     if from_email:
         from_email = email.utils.parseaddr(from_email)[1]
 
@@ -99,16 +149,22 @@ for i, num in enumerate(email_ids, start=1):
         if part_payload:
             body = part_payload.decode(errors="ignore")
 
+    # Prefer HTML → text
     if html_body:
         body = html_to_text(html_body)
     elif body.strip().lower().startswith("<!doctype html") or body.strip().lower().startswith("<html"):
         body = html_to_text(body)
 
+    # Email received time
     received_at = (
         parsedate_to_datetime(msg.get("Date")).isoformat()
         if msg.get("Date")
         else datetime.now().isoformat()
     )
+
+    # =========================
+    # INSERT INTO SUPABASE
+    # =========================
 
     url = f"{SUPABASE_URL}/rest/v1/crm_email_import_log"
 
@@ -134,6 +190,7 @@ for i, num in enumerate(email_ids, start=1):
         print("Insert failed:", response.status_code, response.text)
     else:
         print("Inserted:", subject)
+
 
 # =========================
 # CLEANUP
