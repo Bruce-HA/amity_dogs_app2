@@ -57,7 +57,10 @@ class _DogPhotosTabState extends State<DogPhotosTab> {
         .order('created_at', ascending: false);
 
     photos = List<Map<String, dynamic>>.from(response)
-      .where((p) => p['photo_exists_on_zooeasy'] != false)
+      .where((p) {
+        final fileName = (p['url'] ?? '').toString();
+        return fileName.isNotEmpty;
+      })
       .toList();
 
     if (!mounted) return;
@@ -186,73 +189,96 @@ class _DogPhotosTabState extends State<DogPhotosTab> {
   */
 
   Future<void> uploadPhoto() async {
-    final result = await FilePicker.platform.pickFiles(
-      type: FileType.custom,
-      allowedExtensions: ['jpg', 'jpeg', 'png', 'heic', 'webp'],
-      allowMultiple: false,
-      withData: true,
-    );
+    try {
+      final result = await FilePicker.platform.pickFiles(
+        type: FileType.custom,
+        allowedExtensions: ['jpg', 'jpeg', 'png', 'heic', 'webp'],
+        allowMultiple: false,
+        withData: true,
+      );
 
-    if (result == null || result.files.single.bytes == null) return;
+      if (result == null || result.files.single.bytes == null) {
+        debugPrint('PHOTO UPLOAD: cancelled or no bytes');
+        return;
+      }
 
-    final pickedFile = result.files.single;
-    final originalBytes = pickedFile.bytes!;
+      final pickedFile = result.files.single;
+      final originalBytes = pickedFile.bytes!;
 
-    final extension = cleanExtension(pickedFile.name);
+      debugPrint('PHOTO UPLOAD: picked ${pickedFile.name}');
+      debugPrint('PHOTO UPLOAD: dogId=${widget.dogId}');
+      debugPrint('PHOTO UPLOAD: dogAla=${widget.dogAla}');
 
-    final processedBytes = processImageBytes(
-      originalBytes: originalBytes,
-      extension: extension,
-    );
+      final extension = cleanExtension(pickedFile.name);
 
-    if (processedBytes == null) {
+      final processedBytes = processImageBytes(
+        originalBytes: originalBytes,
+        extension: extension,
+      );
+
+      if (processedBytes == null) {
+        throw Exception('Could not process image');
+      }
+
+      final fileName = "${DateTime.now().millisecondsSinceEpoch}.$extension";
+      final storagePath = buildStoragePath(fileName);
+
+      debugPrint('PHOTO UPLOAD: uploading to $storagePath');
+
+      await supabase.storage.from('dog_files').uploadBinary(
+            storagePath,
+            processedBytes,
+            fileOptions: FileOptions(
+              upsert: true,
+              contentType: extension == 'png' ? 'image/png' : 'image/jpeg',
+            ),
+          );
+
+      debugPrint('PHOTO UPLOAD: storage upload complete');
+
+      final insertPayload = {
+        'dog_id': widget.dogId,
+        'dog_ala': widget.dogAla,
+        'file_name': fileName,
+        'url': fileName,
+        'thumb_url': fileName,
+        'description': '',
+        'is_hero': photos.isEmpty,
+        'display_order': photos.length,
+        'rotation': 0,
+
+        // Do not use this as a visibility flag.
+        // This is only for ZooEasy tracking.
+        'photo_exists_on_zooeasy': null,
+      };
+
+      debugPrint('PHOTO UPLOAD: inserting row $insertPayload');
+
+      await supabase.from('dog_photos').insert(insertPayload);
+
+      debugPrint('PHOTO UPLOAD: dog_photos insert complete');
+
+      await loadPhotos();
+      widget.onHeroChanged?.call();
+
       if (!mounted) return;
 
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text("Could not process image"),
+        const SnackBar(content: Text("Photo uploaded")),
+      );
+    } catch (e, st) {
+      debugPrint('PHOTO UPLOAD ERROR: $e');
+      debugPrint('PHOTO UPLOAD STACK: $st');
+
+      if (!mounted) return;
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text("Photo upload failed: $e"),
+          duration: const Duration(seconds: 6),
         ),
       );
-
-      return;
     }
-
-    final fileName =
-        "${DateTime.now().millisecondsSinceEpoch}.$extension";
-
-    final storagePath = buildStoragePath(fileName);
-
-    await supabase.storage.from('dog_files').uploadBinary(
-          storagePath,
-          processedBytes,
-          fileOptions: const FileOptions(
-            upsert: true,
-          ),
-        );
-
-    await supabase.from('dog_photos').insert({
-      'dog_id': widget.dogId,
-      'dog_ala': widget.dogAla,
-      'file_name': fileName,
-      'url': fileName,
-      'thumb_url': fileName,
-      'description': '',
-      'is_hero': photos.isEmpty,
-      'display_order': photos.length,
-      'rotation': 0,
-      'photo_exists_on_zooeasy': false,
-    });
-
-    await loadPhotos();
-    widget.onHeroChanged?.call();
-
-    if (!mounted) return;
-
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text("Photo uploaded"),
-      ),
-    );
   }
 
   /*

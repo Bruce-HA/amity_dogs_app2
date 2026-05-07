@@ -552,10 +552,11 @@ class _EnquiryDetailPageState extends State<EnquiryDetailPage> {
 
             return !isDeleted && ala.isNotEmpty && shortName.isNotEmpty;
           })
-          .map((l) {
+         .map((l) {
             return {
               'id': l['id'].toString(),
-              'display_name': '${l['ala_litter_number']} - ${l['short_litter_name']}',
+              'display_name':
+                  (l['short_litter_name'] ?? l['ala_litter_number'] ?? '').toString(),
             };
           })
           .toList();
@@ -893,12 +894,6 @@ class _EnquiryDetailPageState extends State<EnquiryDetailPage> {
               },
             ),
           ),
-          const SizedBox(width: 8),
-          ElevatedButton.icon(
-            onPressed: isSaving ? null : saveLitterName,
-            icon: const Icon(Icons.save),
-            label: const Text('Save'),
-          ),
         ],
       ),
     );
@@ -1163,7 +1158,21 @@ class _EnquiryDetailPageState extends State<EnquiryDetailPage> {
           if (person != null)
             Align(
               alignment: Alignment.centerLeft,
+              child: SizedBox(
+              width: double.infinity,
+              height: 58,
               child: ElevatedButton.icon(
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.teal,
+                  foregroundColor: Colors.white,
+                  textStyle: const TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.w800,
+                  ),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(16),
+                  ),
+                ),
                 onPressed: () {
                   Navigator.push(
                     context,
@@ -1174,9 +1183,10 @@ class _EnquiryDetailPageState extends State<EnquiryDetailPage> {
                     ),
                   );
                 },
-                icon: const Icon(Icons.chat),
+                icon: const Icon(Icons.chat_bubble_outline, size: 24),
                 label: const Text('Open Conversation'),
               ),
+            ),
             ),
           const SizedBox(height: 10),
           if (communications.isEmpty)

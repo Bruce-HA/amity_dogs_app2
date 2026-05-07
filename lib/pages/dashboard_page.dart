@@ -13,6 +13,7 @@ import 'admin_page.dart';
 import 'tools_page.dart';
 import 'crm/crm_dashboard_page.dart';
 import 'dart:async';
+import '../services/app_user.dart';
 
 class DashboardPage extends StatefulWidget {
   const DashboardPage({super.key});
@@ -301,6 +302,7 @@ class _DashboardPageState extends State<DashboardPage>
                             colour: secondary,
                             darkText: true,
                           ),
+                          if (AppUser.isAdmin)
                           dashboardTile(
                             icon: Icons.admin_panel_settings,
                             title: 'Admin',

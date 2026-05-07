@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../pages/tools/simple_pedigree_page.dart'; 
 import '../pages/tools/pregnancy_calculator_page.dart';// ✅ correct place
+import 'tools/feedback_page.dart';
 
 class ToolsPage extends StatelessWidget {
   const ToolsPage({super.key});
@@ -36,11 +37,19 @@ class ToolsPage extends StatelessWidget {
             'DNA Colour Lookup',
             PlaceholderPage(title: 'DNA Colour Lookup'),
           ),
-          toolTile(
-            context,
-            Icons.build,
-            'Spare',
-            PlaceholderPage(title: 'Spare'),
+          ListTile(
+            leading: const Icon(Icons.feedback),
+            title: const Text('Feedback & Ideas'),
+            subtitle: const Text('Report bugs, suggest features, and read replies'),
+            trailing: const Icon(Icons.chevron_right),
+            onTap: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => const FeedbackPage(),
+                ),
+              );
+            },
           ),
           toolTile(
             context,

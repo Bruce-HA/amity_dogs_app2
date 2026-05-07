@@ -21,6 +21,7 @@ class _ConversationPageState extends State<ConversationPage> {
 
   bool isLoading = true;
   bool isSending = false;
+  bool newestFirst = true;
 
   List<Map<String, dynamic>> messages = [];
   Map<String, dynamic>? person;
@@ -61,7 +62,7 @@ class _ConversationPageState extends State<ConversationPage> {
           .from('communications')
           .select()
           .eq('people_id', widget.personId)
-          .order('created_at', ascending: true);
+          .order('created_at', ascending: !newestFirst);
 
       setState(() {
         person = Map<String, dynamic>.from(personData);
@@ -375,6 +376,22 @@ class _ConversationPageState extends State<ConversationPage> {
     return Scaffold(
       appBar: AppBar(
         title: Text(getPersonName()),
+        actions: [
+          IconButton(
+            tooltip: newestFirst ? 'Newest first' : 'Oldest first',
+            icon: Icon(
+              newestFirst
+                  ? Icons.arrow_downward
+                  : Icons.arrow_upward,
+            ),
+            onPressed: () {
+              setState(() {
+                newestFirst = !newestFirst;
+              });
+              fetchConversation();
+            },
+          ),
+        ],
       ),
       body: Column(
         children: [

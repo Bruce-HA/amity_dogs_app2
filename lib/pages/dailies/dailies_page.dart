@@ -29,7 +29,7 @@ class _DailiesPageState extends State<DailiesPage> {
     final res = await supabase
         .from('litters')
         .select()
-        .not('litter_full_code', 'is', null)
+        .eq('status', 'active')
         .order('created_at', ascending: false)
         .limit(20);
 

@@ -29,32 +29,50 @@ class _PhotoViewerPageState extends State<PhotoViewerPage> {
   final supabase = Supabase.instance.client;
 
   Future<void> deletePhoto() async {
-    final fileName = widget.photo['url'];
+    try {
+      final fileName = (widget.photo['url'] ?? '').toString();
+      final photoId = widget.photo['id'];
 
-    if (fileName == null || fileName.toString().isEmpty) {
-      return;
-    }
+      if (fileName.isEmpty || photoId == null) {
+        throw Exception('Missing photo file name or photo ID');
+      }
 
-    // Only delete this exact file from storage.
-    // This does NOT delete the dog folder or photos folder.
-    final storagePath = "${widget.dogAla}/photos/$fileName";
+      final storagePath = "${widget.dogAla}/photos/$fileName";
 
-    await supabase.storage
-        .from('dog_files')
-        .remove([storagePath]);
+      debugPrint('PHOTO DELETE: removing storage file $storagePath');
 
-    // Keep the dog_photos row for ZooEasy / future sync.
-    // Mark it as missing instead of deleting it.
-    await supabase
-        .from('dog_photos')
-        .update({
-          'photo_exists_on_zooeasy': false,
-          'is_hero': false,
-        })
-        .eq('id', widget.photo['id']);
+      await supabase.storage
+          .from('dog_files')
+          .remove([storagePath]);
 
-    if (mounted) {
+      debugPrint('PHOTO DELETE: storage remove complete');
+
+      await supabase
+          .from('dog_photos')
+          .delete()
+          .eq('id', photoId);
+
+      debugPrint('PHOTO DELETE: dog_photos row deleted');
+
+      if (!mounted) return;
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Photo deleted')),
+      );
+
       Navigator.pop(context, true);
+    } catch (e, st) {
+      debugPrint('PHOTO DELETE ERROR: $e');
+      debugPrint('PHOTO DELETE STACK: $st');
+
+      if (!mounted) return;
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Delete failed: $e'),
+          duration: const Duration(seconds: 6),
+        ),
+      );
     }
   }
 

@@ -7,6 +7,7 @@ import 'enquiry_detail_page.dart';
 import 'enquiry_form_page.dart';
 import 'reply_templates_page.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'new_enquiry_for_person_page.dart';
 
 class InboxPage extends StatefulWidget {
   const InboxPage({super.key});
@@ -762,6 +763,19 @@ class _InboxPageState extends State<InboxPage> {
                 builder: (_) => const ReplyTemplatesPage(),
               ),
             );
+          },
+        ),
+
+        IconButton(
+          tooltip: 'New enquiry for existing person',
+          icon: const Icon(Icons.person_add_alt_1),
+          onPressed: () {
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (_) => const NewEnquiryForPersonPage(),
+              ),
+            ).then((_) => fetchInbox());
           },
         ),
         IconButton(

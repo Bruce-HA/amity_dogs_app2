@@ -45,6 +45,8 @@ class _DogDetailsPageState extends State<DogDetailsPage> {
   int maleCount = 0;
   int femaleCount = 0;
 
+  bool _didChangeDog = false;
+
   List<String> getTabs() {
     if (dog == null) return [];
 
@@ -542,6 +544,7 @@ class _DogDetailsPageState extends State<DogDetailsPage> {
           dogId: widget.dogId,
           dogAla: dog!['dog_ala'],
           onHeroChanged: () async {
+            _didChangeDog = true;
             await loadDog();
           },
         );
@@ -664,26 +667,32 @@ class _DogDetailsPageState extends State<DogDetailsPage> {
 
     return Scaffold(
       appBar: AppBar(
-        title: Text(dog!['dog_name'] ?? ''),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.edit, size: 20),
-            onPressed: () async {
-              final updated = await Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (_) => DogEditPage(dog: dog!),
-                ),
-              );
-
-              if (updated == true) {
-                await loadDog();
-                Navigator.pop(context, true); // 🔥 bubble up
-              }
-            },
-          ),
-        ],
+      title: Text(dog!['dog_name'] ?? ''),
+      leading: IconButton(
+        icon: const Icon(Icons.arrow_back),
+        onPressed: () {
+          Navigator.pop(context, _didChangeDog);
+        },
       ),
+      actions: [
+        IconButton(
+          icon: const Icon(Icons.edit, size: 20),
+          onPressed: () async {
+            final updated = await Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (_) => DogEditPage(dog: dog!),
+              ),
+            );
+
+            if (updated == true) {
+              _didChangeDog = true;
+              await loadDog();
+            }
+          },
+        ),
+      ],
+    ),
       body: Column(
         children: [
 
