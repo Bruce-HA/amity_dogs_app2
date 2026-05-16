@@ -158,17 +158,17 @@ class _DashboardPageState extends State<DashboardPage>
   Widget build(BuildContext context) {
     final primary = colourFromHex(
       company?['primary_colour'],
-      const Color(0xFF5B2C83),
+      const Color(0xFF2D7FF9)
     );
 
     final secondary = colourFromHex(
       company?['secondary_colour'],
-      const Color(0xFFD4AF37),
+      const Color(0xFF90E0EF)
     );
 
     final accent = colourFromHex(
       company?['accent_colour'],
-      const Color(0xFF8E44AD),
+      const Color(0xFF00B4D8)
     );
 
     final companyName =
@@ -182,13 +182,7 @@ class _DashboardPageState extends State<DashboardPage>
 
     return Scaffold(
       backgroundColor: Colors.grey.shade100,
-      appBar: AppBar(
-        title: Text(companyName),
-        centerTitle: true,
-        backgroundColor: primary,
-        foregroundColor: Colors.white,
-        elevation: 0,
-      ),
+
       body: loading
           ? const Center(child: CircularProgressIndicator())
           : SafeArea(
@@ -214,7 +208,7 @@ class _DashboardPageState extends State<DashboardPage>
                         crossAxisCount: 2,
                         crossAxisSpacing: 14,
                         mainAxisSpacing: 14,
-                        childAspectRatio: 0.95,
+                        childAspectRatio: 0.75,
                       ),
                       delegate: SliverChildListDelegate(
                         [
@@ -226,7 +220,7 @@ class _DashboardPageState extends State<DashboardPage>
                           ),
                           dashboardTile(
                             icon: Icons.route,
-                            title: 'The Flow',
+                            title: 'Breeding Flow',
                             page: const FlowDashboardPage(),
                             colour: accent,
                           ),
@@ -269,7 +263,7 @@ class _DashboardPageState extends State<DashboardPage>
                                 icon: Icons.hub,
                                 title: pendingImportCount > 0
                                     ? 'CRM Hub\n$pendingImportCount waiting'
-                                    : 'CRM Hub',
+                                    : 'CRM',
                                 page: const CrmDashboardPage(),
                                 colour: colour,
                               );
@@ -279,7 +273,7 @@ class _DashboardPageState extends State<DashboardPage>
 
                           dashboardTile(
                             icon: Icons.event_note,
-                            title: 'Daily',
+                            title: 'Daily Care',
                             page: const DailiesPage(),
                             colour: Colors.orange,
                           ),
@@ -291,7 +285,7 @@ class _DashboardPageState extends State<DashboardPage>
                           ),
                           dashboardTile(
                             icon: Icons.directions_car,
-                            title: 'Vehicle Log',
+                            title: 'Vehicles',
                             page: const VehicleLogPage(),
                             colour: Colors.green,
                           ),
@@ -351,88 +345,93 @@ class _DashboardPageState extends State<DashboardPage>
   }) {
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.fromLTRB(18, 18, 18, 24),
+      padding: const EdgeInsets.fromLTRB(18, 52, 18, 28),
       decoration: BoxDecoration(
-        gradient: LinearGradient(
-          colors: [primary, accent],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-        ),
+        gradient: const LinearGradient(
+        colors: [
+          Color(0xFF0B3C5D),
+          Color(0xFF1565C0),
+          Color(0xFF00ACC1),
+        ],
+        begin: Alignment.topLeft,
+        end: Alignment.bottomRight,
+      ),
         borderRadius: const BorderRadius.vertical(
           bottom: Radius.circular(28),
         ),
       ),
       child: Column(
         children: [
-          Row(
-            children: [
-              _logoBubble(logoUrl, Icons.pets, secondary),
-              const SizedBox(width: 14),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      companyName,
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 24,
-                        fontWeight: FontWeight.w800,
-                      ),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      userName != null ? 'Welcome back $userName' : 'Welcome',
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 18,
-                      ),
-                    ),
-                    if (company?['association_number'] != null)
-                      Text(
-                        company!['association_number'],
-                        style: TextStyle(
-                          color: Colors.white.withOpacity(0.85),
-                          fontSize: 12,
-                        ),
-                      ),
-                  ],
-                ),
-              ),
-              if (associationLogoUrl != null &&
-                  associationLogoUrl.toString().isNotEmpty)
-                _logoBubble(associationLogoUrl, Icons.verified, secondary),
-            ],
-          ),
-          const SizedBox(height: 18),
-          Container(
-            padding: const EdgeInsets.all(14),
-            decoration: BoxDecoration(
-              color: Colors.white.withOpacity(0.16),
-              borderRadius: BorderRadius.circular(20),
-              border: Border.all(
-                color: Colors.white.withOpacity(0.25),
-              ),
+          Column(
+          children: [
+
+            Container(
+            padding: const EdgeInsets.symmetric(
+              horizontal: 22,
+              vertical: 12,
             ),
-            child: Row(
-              children: [
-                Icon(
-                  Icons.favorite,
-                  color: secondary,
-                  size: 30,
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Text(
-                    footerText,
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontSize: 14,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(22),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withOpacity(0.16),
+                  blurRadius: 18,
+                  offset: const Offset(0, 8),
                 ),
               ],
+            ),
+            child: Image.asset(
+              'assets/images/branding/whelpwise_logo.png',
+              height: 70,
+              fit: BoxFit.contain,
+            ),
+          ),
+
+            const SizedBox(height: 10),
+
+            Text(
+              userName != null
+                  ? 'Welcome back $userName'
+                  : 'Welcome',
+              style: const TextStyle(
+                color: Colors.white,
+                fontSize: 20,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+
+            const SizedBox(height: 4),
+
+            if (company?['association_number'] != null)
+              Text(
+                '${company!['association_number']} • $companyName',
+                style: TextStyle(
+                  color: Colors.white.withOpacity(0.85),
+                  fontSize: 13,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+          ],
+        ),
+          const SizedBox(height: 18),
+          Container(
+            padding: const EdgeInsets.symmetric(
+              horizontal: 18,
+              vertical: 14,
+            ),
+            decoration: BoxDecoration(
+              color: Colors.white.withOpacity(0.12),
+              borderRadius: BorderRadius.circular(18),
+            ),
+            child: const Text(
+              'Plan • Track • Nurture',
+              style: TextStyle(
+                color: Colors.white,
+                fontSize: 16,
+                fontWeight: FontWeight.w700,
+                letterSpacing: 1,
+              ),
             ),
           ),
         ],

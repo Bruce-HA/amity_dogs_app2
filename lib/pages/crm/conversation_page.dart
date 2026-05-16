@@ -152,32 +152,61 @@ class _ConversationPageState extends State<ConversationPage> {
     final text = _controller.text.trim();
     if (text.isEmpty || person == null) return;
 
+    final toEmail = (person!['email_1st'] ?? person!['email'] ?? '').toString();
+
+    if (toEmail.trim().isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('No email address found for this person')),
+      );
+      return;
+    }
+
     setState(() => isSending = true);
 
     try {
       final user = supabase.auth.currentUser;
+      final communicationId = const Uuid().v4();
+      final subject = overrideSubject ?? 'Reply from Amity Labradoodles';
 
       await supabase.from('communications').insert({
-        'communication_id': const Uuid().v4(),
+        'communication_id': communicationId,
         'people_id': widget.personId,
         'channel': 'email',
         'direction': 'outbound',
-        'subject': overrideSubject ?? 'Reply from Amity Labradoodles',
+        'subject': subject,
         'message_body': text,
-        'status': 'sent',
+        'from_email': 'info@amity.pet',
+        'to_email': toEmail,
+        'status': 'queued',
         'created_at': DateTime.now().toIso8601String(),
         'created_by': user?.id,
       });
 
+      await supabase.from('crm_email_outbox').insert({
+        'communication_id': communicationId,
+        'people_id': widget.personId,
+        'from_email': 'info@amity.pet',
+        'to_email': toEmail,
+        'subject': subject,
+        'body': text,
+        'status': 'pending',
+      });
+
       _controller.clear();
       await fetchConversation();
-    } catch (e) {
-      debugPrint('Send message error: $e');
 
       if (!mounted) return;
 
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Could not send message: $e')),
+        const SnackBar(content: Text('Reply queued for sending')),
+      );
+    } catch (e) {
+      debugPrint('Queue reply error: $e');
+
+      if (!mounted) return;
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Could not queue reply: $e')),
       );
     }
 

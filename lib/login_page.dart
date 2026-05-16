@@ -47,12 +47,33 @@ class _LoginPageState extends State<LoginPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Login')),
+      appBar: AppBar(title: const Text('WhelpWise')),
       body: Padding(
         padding: const EdgeInsets.all(16),
         child: Column(
           children: [
-            TextField(
+
+          const SizedBox(height: 20),
+
+          Image.asset(
+            'assets/images/branding/whelpwise_logo.png',
+            height: 140,
+          ),
+
+          const SizedBox(height: 8),
+
+          const Text(
+            'Plan. Track. Nurture.',
+            style: TextStyle(
+              fontSize: 16,
+              color: Colors.grey,
+              fontWeight: FontWeight.w500,
+            ),
+          ),
+
+          const SizedBox(height: 32),
+
+          TextField(
               controller: emailController,
               decoration: const InputDecoration(labelText: 'Email'),
             ),
